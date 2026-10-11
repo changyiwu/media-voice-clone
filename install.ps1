@@ -8,8 +8,9 @@
 #   NVIDIA (CUDA)      → pip install torch --index-url .../cu128
 #   Apple Silicon      → pip install torch（PyPI 預設 wheel 已含 MPS，不可加 --index-url）
 #   無獨顯 (CPU)       → pip install torch --index-url .../cpu
-#   Windows on ARM     → 一律 CPU（即使有 NVIDIA RTX Spark）：cu128 索引沒有 win_arm64 wheel，
-#                        PyTorch 官方也尚未發布 Windows ARM64 的 CUDA 版
+#   Windows on ARM     → x64 Python（Prism 模擬）＋ CPU 版 PyTorch（即使有 NVIDIA RTX Spark）：
+#                        torchaudio 在 PyTorch 官方索引沒有 win_arm64 wheel，voxcpm 的相依
+#                        （pyarrow、tiktoken、soxr…）也沒有，原生 ARM64 環境根本裝不起來
 
 $ErrorActionPreference = 'Stop'
 
@@ -44,12 +45,23 @@ if (-not $uv) {
     Write-Host "  uv 已安裝: $($uv.Source)" -ForegroundColor Green
 }
 
+# 看作業系統的架構，不看 pwsh 自己的：x64 版 pwsh 在 ARM 上模擬執行時，ProcessArchitecture 會回報 X64
+$isWindowsArm = $IsWindows -and
+    [Runtime.InteropServices.RuntimeInformation]::OSArchitecture -eq [Runtime.InteropServices.Architecture]::Arm64
+
 # --- Step 2: 建立 Python 3.12 venv ---
 Write-Host '[2/5] 建立 Python 3.12 虛擬環境...' -ForegroundColor Yellow
+# Windows on ARM 指定 x64 直譯器：原生 ARM64 的 torchaudio、pyarrow、tiktoken 等都沒有 wheel，
+# 只能靠 Prism 模擬跑 x64 版（GPU 用不到，走 CPU）
+$pythonRequest = if ($isWindowsArm) { 'cpython-3.12-windows-x86_64-none' } else { '3.12' }
 if (Test-Path $venvPython) {
+    if ($isWindowsArm -and (& $venvPython -c 'import platform; print(platform.machine())') -ne 'AMD64') {
+        throw "$venvName 是原生 ARM64 環境，voxcpm 裝不起來。刪掉 $venvName 後重跑本腳本，會改建 x64 環境。"
+    }
     Write-Host "  $venvName 已存在，跳過建立。" -ForegroundColor Green
 } else {
-    uv venv --python 3.12 $venvName
+    uv venv --python $pythonRequest $venvName
+    if ($LASTEXITCODE -ne 0) { throw "建立 venv 失敗（uv exit code: $LASTEXITCODE）" }
     Write-Host "  venv 建立完成: $venvName" -ForegroundColor Green
 }
 
@@ -57,9 +69,6 @@ if (Test-Path $venvPython) {
 Write-Host '[3/5] 偵測加速裝置...' -ForegroundColor Yellow
 $gpuType = 'cpu'
 $gpuName = ''
-# 看作業系統的架構，不看 pwsh 自己的：x64 版 pwsh 在 ARM 上模擬執行時，ProcessArchitecture 會回報 X64
-$isWindowsArm = $IsWindows -and
-    [Runtime.InteropServices.RuntimeInformation]::OSArchitecture -eq [Runtime.InteropServices.Architecture]::Arm64
 
 if ($IsWindows) {
     # Get-CimInstance Win32_VideoController 是 WMI，只有 Windows 有
@@ -72,10 +81,10 @@ if ($IsWindows) {
         }
     }
     if ($isWindowsArm -and $gpuType -eq 'cuda') {
-        # 不可照 x64 的路走 cu128：那個索引沒有 win_arm64 wheel，uv 會直接裝失敗
+        # 模擬執行的 x64 程式載不到 ARM64 的 NVIDIA 驅動，裝 cu128 也只是白下載 3GB
         Write-Host "  偵測到 $gpuName，但這台是 Windows on ARM。" -ForegroundColor Yellow
-        Write-Host '  PyTorch 官方尚未發布 Windows ARM64 的 CUDA 版，GPU 用不到，改用 CPU 模式。' -ForegroundColor Yellow
-        Write-Host '  日後官方發布了再重跑本腳本（刪掉 .venv 重建）。' -ForegroundColor Yellow
+        Write-Host '  voxcpm 只能在 x64 模擬環境裡跑，GPU 用不到，改用 CPU 模式（會明顯較慢）。' -ForegroundColor Yellow
+        Write-Host '  NVIDIA 的 ARM64 CUDA 版 PyTorch 仍是預覽版，且 voxcpm 的其他相依還沒有 ARM64 版；兩者都到位再改。' -ForegroundColor Yellow
         $gpuType = 'cpu'
     }
 } elseif ($IsMacOS) {
@@ -116,7 +125,7 @@ if ($torchIndex) {
 # 原生指令失敗不受 $ErrorActionPreference 管，不檢查的話會一路印「安裝完成」
 if ($LASTEXITCODE -ne 0) {
     if ($isWindowsArm) {
-        throw 'PyTorch 安裝失敗。這台是 Windows on ARM，可能是該版 PyTorch 沒有 win_arm64 wheel；請把上面的錯誤訊息貼給 Agent 判斷。'
+        throw "PyTorch 安裝失敗。這台是 Windows on ARM，先確認 $venvName 是 x64 環境（$venvPython -c `"import platform;print(platform.machine())`" 應為 AMD64）；請把上面的錯誤訊息貼給 Agent 判斷。"
     }
     throw "PyTorch 安裝失敗（uv exit code: $LASTEXITCODE）"
 }

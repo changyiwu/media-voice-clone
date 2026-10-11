@@ -133,6 +133,8 @@ voxcpm2-voice-cloner/
 
 - NVIDIA GPU → CUDA
 - 無獨顯 → CPU（較慢）
+- Windows on ARM（含 RTX Spark 的 NVIDIA GPU）→ 一律 CPU，`.venv` 必須是 **x64** 環境（`install.ps1` 會指定 `cpython-3.12-windows-x86_64-none`）。原生 ARM64 環境裝不起 voxcpm（`torchaudio`、`pyarrow`、`tiktoken`、`soxr` 都沒有 win_arm64 wheel），不要嘗試
+- `.gpu_type` 跟著雲端硬碟同步、可能是別台寫的，所以 `detect_device()` 讀到後會再確認一次這台真的可用，不可用就退回 CPU
 
 > 只支援 CUDA 與 CPU 兩種模式，不支援 Intel Arc（XPU）。`.gpu_type` 若出現 `xpu` 等無效值，一律退回 CPU。
 

@@ -128,8 +128,12 @@ voxcpm2-voice-cloner/
 | NVIDIA RTX 5060 Ti | cuda | cu128 wheel | **RTF ~1.2（實測）** |
 | NVIDIA (CUDA 12+) | cuda | cu128 wheel | RTF ~0.3（RTX 4090，未實測） |
 | 無獨顯 | cpu | cpu wheel | RTF ~8.0（未實測） |
+| Windows on ARM（RTX Spark、Snapdragon） | cpu | x64 Python 模擬＋cpu wheel | 比 x64 CPU 更慢（未實測） |
 
 > 本專案只支援 NVIDIA CUDA 與 CPU。Intel Arc（XPU）支援已於 2026-08-08 移除。
+>
+> Windows on ARM 即使有 NVIDIA GPU 也只能跑 CPU：`torchaudio`、`pyarrow`、`tiktoken` 等相依沒有原生 ARM64 版，
+> `install.ps1` 會自動改建 x64 環境靠 Prism 模擬執行，而模擬中的程式用不到 GPU。
 
 > RTF = 生成 N 秒語音所需的時間倍率，越低越快。
 

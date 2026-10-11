@@ -10,6 +10,7 @@ import soundfile as sf
 import numpy as np
 import time
 import os
+import sys
 
 REPO_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -44,7 +45,18 @@ def detect_device():
         else:
             gpu_type = 'cpu'
 
-    return gpu_type if gpu_type in ('cuda', 'mps', 'cpu') else 'cpu'
+    if gpu_type not in ('cuda', 'mps', 'cpu'):
+        return 'cpu'
+    # .gpu_type 跟著雲端硬碟同步，可能是別台寫的（例如桌機寫 cuda、Windows on ARM 筆電用不到），
+    # 所以實際可不可用還要再確認一次
+    if gpu_type != 'cpu':
+        import torch
+        ok = torch.cuda.is_available() if gpu_type == 'cuda' else (
+            getattr(torch.backends, 'mps', None) is not None and torch.backends.mps.is_available())
+        if not ok:
+            print(f'⚠️ .gpu_type 是 {gpu_type}，但這台用不到，改用 CPU（會較慢）。', file=sys.stderr)
+            return 'cpu'
+    return gpu_type
 
 def load_voice(voice_name):
     """讀取指定聲音的參考音與逐字稿。"""
