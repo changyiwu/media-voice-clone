@@ -82,6 +82,12 @@ def main():
         print('範例: python clone.py "你好，這是我的克隆聲音。"')
         sys.exit(1)
 
+    # 套讀音替換表（多音字、英文詞改字）；只改送進模型的文字，逐字稿不動
+    from tts_lexicon import load_lexicon, speakable
+    say_text = speakable(gen_text, load_lexicon(os.path.dirname(os.path.abspath(args.output))))
+    if say_text != gen_text:
+        print(f'改寫後: {say_text}')
+
     # 根據 voice 名稱解析參考音和逐字稿
     reference, text_file = resolve_voice_files(args.voice, args.reference, args.text_file)
 
@@ -119,10 +125,10 @@ def main():
     print(f'模型載入完成，耗時 {time.time()-t0:.1f}s')
 
     # 生成語音
-    print(f'生成中（{len(gen_text)} 字）...')
+    print(f'生成中（{len(say_text)} 字）...')
     t1 = time.time()
     wav = model.generate(
-        text=gen_text,
+        text=say_text,
         prompt_wav_path=reference,
         prompt_text=prompt_text,
         reference_wav_path=reference,

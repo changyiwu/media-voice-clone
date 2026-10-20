@@ -11,6 +11,7 @@ import numpy as np
 import time
 import os
 import sys
+from tts_lexicon import load_lexicon, speakable
 
 REPO_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -81,16 +82,23 @@ def main():
         voices[name] = load_voice(name)
         print(f"  已載入聲音: {name}")
 
+    # 讀音替換表（多音字、英文詞改字）；只改送進模型的文字，逐字稿不動
+    output_path = os.path.join(REPO_DIR, "output", f"dialogue_{SPEAKER_A}_{SPEAKER_B}.wav")
+    lexicon = load_lexicon(os.path.dirname(output_path))
+
     print(f"\n開始生成對話（{len(dialogue)} 句）...\n")
 
     clips = []
     for i, (speaker, text) in enumerate(dialogue, 1):
         ref_wav, prompt_text = voices[speaker]
         print(f"[{i}/{len(dialogue)}] {speaker}: {text}")
+        say_text = speakable(text, lexicon)
+        if say_text != text:
+            print(f"        改寫後: {say_text}")
 
         t1 = time.time()
         wav = model.generate(
-            text=text,
+            text=say_text,
             prompt_wav_path=ref_wav,
             prompt_text=prompt_text,
             reference_wav_path=ref_wav,
@@ -109,7 +117,6 @@ def main():
     # 拼接所有片段
     full_audio = np.concatenate(clips)
     total_duration = len(full_audio) / model.tts_model.sample_rate
-    output_path = os.path.join(REPO_DIR, "output", f"dialogue_{SPEAKER_A}_{SPEAKER_B}.wav")
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     sf.write(output_path, full_audio, model.tts_model.sample_rate)
 

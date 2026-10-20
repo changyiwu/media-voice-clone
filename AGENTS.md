@@ -30,6 +30,7 @@ voxcpm2-voice-cloner/
 ├── record_ui.py              # 錄音 UI（唯一介面，僅用標準庫）
 ├── clone.py                  # Agent 工具：用聲音生成語音
 ├── dialogue.py               # Agent 工具：多聲音對話
+├── tts_lexicon.py            # 讀音替換表載入（clone.py／dialogue.py 共用）
 ├── record.py                 # 命令列錄音（備案）
 ├── app.py                    # 舊版錄音 UI（gradio，本機無法執行）
 ├── webui_record.py           # 舊版網頁錄音（gradio，本機無法執行）
@@ -110,6 +111,17 @@ voxcpm2-voice-cloner/
 - 自訂對話內容：編輯 `dialogue.py` 中的 `dialogue` 清單
 - 模型只載入一次、逐句切換聲音，攤下來每句只多約 10 秒。實測 8 句 35.8 秒對話共 59 秒（**第一句是暖機、會特別慢**，之後穩定在 RTF ~1.1）
 
+### tts_lexicon.py — 讀音替換表
+
+`clone.py`、`dialogue.py` 送進模型前會先套 `tts-lexicon.md`（`| 原文 | 改寫 | 說明 |`），把念錯的多音字、英文詞改字（奇數→基數、十一少一→十一少了一、GPT-4→GPT four），並印出「改寫後」的文字。參考音逐字稿（`prompt.txt`）不替換。
+
+- **主表**與 ai-video-workflow、agent-video-specs 共用：環境變數 `TTS_LEXICON` 優先，否則以 `tts_lexicon.py` 自己的位置往上找 `ai-video-workflow/tts-lexicon.md`（不靠 cwd，所以從全域技能呼叫也找得到）
+- **覆蓋**：本專案根目錄、輸出資料夾往上每一層的同名 `tts-lexicon.md`，近的優先
+- 找不到任何表只印一行提示、照原文念，不報錯
+- **使用者說某個詞念錯了** → 條目加進主表（共用的那份，說明欄寫正確讀音、出處、是否已人耳確認），只對這裡有效才放本專案根目錄。加完重生那句給使用者聽
+- 試表不必載模型：`.\.venv\Scripts\python.exe tts_lexicon.py "句子"`
+- 本專案是獨立公開 repo，**不要 import ai-video-workflow 的程式**；解析規則改了要兩邊各自改
+
 ### record_ui.py — 錄音 UI
 
 ```powershell
@@ -145,6 +157,7 @@ voxcpm2-voice-cloner/
 | 「用OOO的聲音念出／說出／講出XXX」 | 走 `voice-cloner` 全域技能（見下節）；沒裝技能就直接 `clone.py "XXX" --voice OOO` |
 | 「讓A和B對話」 | 編輯 `dialogue.py` 對話清單 → 執行 |
 | 「有哪些聲音」 | `ls voices\` |
+| 「XX 念錯了」「XX 要念成 OO」 | 加一列進讀音替換表主表 → 重生那句（見〈tts_lexicon.py〉） |
 | 「我要錄聲音」 | 引導使用者雙擊 `start.bat`，或開啟 http://127.0.0.1:7860 |
 
 ## 全域技能 voice-cloner

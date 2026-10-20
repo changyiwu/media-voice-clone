@@ -102,6 +102,28 @@ Agent 會自動找到對應聲音、生成語音、回傳音檔。
 
 對話內容請直接編輯 `dialogue.py` 中的 `dialogue` 清單。
 
+### 讀音替換表（念錯字時）
+
+VoxCPM2 不支援注音標記，多音字、英文詞念錯只能改字。`clone.py`、`dialogue.py` 送進模型前會先套讀音替換表 `tts-lexicon.md`（Markdown 表格 `| 原文 | 改寫 | 說明 |`），並印出改寫後的文字；參考音的逐字稿不受影響。
+
+| 原文 | 改寫 | 原因 |
+|---|---|---|
+| 奇數 | 基數 | 奇讀 jī |
+| 十一少一 | 十一少了一 | 少讀 shǎo |
+| GPT-4 | GPT four | 英文型號的數字用英文念 |
+
+找表的順序（近的覆蓋遠的，同一個原文以近的為準）：
+
+1. 主表：環境變數 `TTS_LEXICON`；沒設就從本專案資料夾往上找 `ai-video-workflow/tts-lexicon.md`（與其他 TTS 專案共用的主表）
+2. 本專案根目錄的 `tts-lexicon.md`
+3. 輸出資料夾往上每一層的 `tts-lexicon.md`
+
+一份都找不到就印一行提示、照原文念。改寫盡量用同音字或補字；新增條目後重生那句實際聽過。試表不必載入模型：
+
+```powershell
+.\.venv\Scripts\python.exe tts_lexicon.py "奇數加奇數是偶數，十比十一少一。"
+```
+
 ## 目錄結構
 
 ```
@@ -111,6 +133,7 @@ voxcpm2-voice-cloner/
 ├── webui_record.py           # 舊版網頁錄音（gradio）
 ├── clone.py                  # Agent 工具：用聲音生成語音
 ├── dialogue.py               # Agent 工具：多聲音對話
+├── tts_lexicon.py            # 讀音替換表載入（clone.py／dialogue.py 共用）
 ├── record.py                 # 命令列錄音（備案）
 ├── start.bat                 # 雙擊啟動錄音 UI
 ├── install.bat               # 雙擊安裝
