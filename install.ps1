@@ -131,13 +131,14 @@ if ($LASTEXITCODE -ne 0) {
 }
 Write-Host "  PyTorch 安裝完成。" -ForegroundColor Green
 
-# --- Step 5: 安裝 voxcpm + sounddevice + resampy ---
-Write-Host '[5/5] 安裝 voxcpm + sounddevice + resampy...' -ForegroundColor Yellow
-uv pip install --python $venvPython voxcpm sounddevice resampy
+# --- Step 5: 安裝 voxcpm + sounddevice + resampy + opencc ---
+# opencc-python-reimplemented：送進模型前繁轉簡（voice_prep.py；VoxCPM2 念簡體比較穩），純 Python，ARM 也裝得起來
+Write-Host '[5/5] 安裝 voxcpm + sounddevice + resampy + opencc...' -ForegroundColor Yellow
+uv pip install --python $venvPython voxcpm sounddevice resampy opencc-python-reimplemented
 if ($LASTEXITCODE -ne 0) {
-    throw "voxcpm／sounddevice／resampy 安裝失敗（uv exit code: $LASTEXITCODE）"
+    throw "voxcpm／sounddevice／resampy／opencc 安裝失敗（uv exit code: $LASTEXITCODE）"
 }
-Write-Host "  voxcpm + sounddevice + resampy 安裝完成。" -ForegroundColor Green
+Write-Host "  voxcpm + sounddevice + resampy + opencc 安裝完成。" -ForegroundColor Green
 
 # --- 驗證 ---
 Write-Host ''

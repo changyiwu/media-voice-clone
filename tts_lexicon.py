@@ -2,14 +2,14 @@
 """
 tts_lexicon.py - 讀音替換表：送進 VoxCPM2 前把念錯的詞換成念得對的寫法（多音字、英文詞）。
 
-VoxCPM2 不支援注音標記，多音字、英文詞念錯只能改字。表的格式是 Markdown 表格
-「| 原文 | 改寫 | 說明 |」，格式規則寫在主表開頭。只改送進模型的文字，
-參考音的逐字稿（prompt.txt）不受影響。
+VoxCPM2 不支援注音標記，多音字、英文詞念錯只能改字。表在本專案根目錄的 tts-lexicon.md（Markdown 表格
+「| 原文 | 改寫 | 說明 |」，格式規則寫在表的開頭）。只改送進模型的文字，參考音的逐字稿（prompt.txt）不受影響。
+這份表有四份、內容完全相同（另外三份在 agent-video-specs、ai-video-workflow、agent-speak-skill/speak/；
+四個 repo 都公開，各自單獨下載就能用），放在同一層時合併讀取。
 
-找表的順序（近的覆蓋遠的，同一個原文以近的為準）：
-  1. 主表：環境變數 TTS_LEXICON；沒設就從本專案資料夾往上找 ai-video-workflow/tts-lexicon.md
-     （以本檔所在位置為起點，所以從任何工作目錄呼叫 clone.py 都找得到）
-  2. 本專案根目錄的 tts-lexicon.md
+找表的順序（近的覆蓋遠的，同一個原文以近的為準；都以本檔所在位置為起點，從任何工作目錄呼叫都找得到）：
+  1. 同層另外三份（有就合併）
+  2. 本專案根目錄的 tts-lexicon.md（設了環境變數 TTS_LEXICON 就改讀它指的表）
   3. 輸出資料夾往上每一層的 tts-lexicon.md
 找不到任何表就印一行提示、不做替換。
 
@@ -23,22 +23,23 @@ from pathlib import Path
 NAME = 'tts-lexicon.md'
 REPO = Path(__file__).resolve().parent
 HEAD = ('原文', '改寫')
+# 同內容的另外三份（repo 名稱, 表在 repo 裡的位置）
+SIBLINGS = [('agent-video-specs', NAME), ('ai-video-workflow', NAME), ('agent-speak-skill', f'speak/{NAME}')]
 
 
-def master():
+def siblings():
+    return [next((d / repo / rel for d in REPO.parents if (d / repo / rel).is_file()), None)
+            for repo, rel in SIBLINGS]
+
+
+def own():
     p = os.environ.get('TTS_LEXICON')
-    if p:
-        return Path(p).expanduser()
-    for d in (REPO, *REPO.parents):
-        f = d / 'ai-video-workflow' / NAME
-        if f.is_file():
-            return f
-    return None
+    return Path(p).expanduser() if p else REPO / NAME
 
 
 def lexicon_files(start=None):
     """回傳要讀的表，遠的在前、近的在後"""
-    files = [master(), REPO / NAME]
+    files = [*siblings(), own()]
     if start:
         s = Path(start).resolve()
         files += reversed([d / NAME for d in (s, *s.parents)])

@@ -94,13 +94,25 @@ Agent 會自動找到對應聲音、生成語音、回傳音檔。
 
 輸出檔案預設在 `output/cloned_voice.wav`。
 
+生成後會自動做**後處理**（`voice_prep.py`）：去頭尾靜音、濾掉低頻轟聲與 11 kHz 以上的嘶聲、響度調到 **−15 LUFS**（取樣峰值不超過 −1 dBFS）。不要後處理就加 `--raw`。送進模型前的文字會先套讀音替換表、再**繁轉簡**（VoxCPM2 念簡體比較穩；需要 `opencc-python-reimplemented`，`install.ps1` 會裝，沒裝就跳過）。
+
+**同一句多生幾個挑一個**：VoxCPM2 每次生成都有隨機性，同一句換個 seed，聲調、停頓、有沒有嘶聲都不一樣。
+
+```powershell
+.\.venv\Scripts\python.exe clone.py "這句話念了好幾次都怪怪的" --takes 4 -o output/line.wav
+#   → output/line_takes/line_s1.wav … line_s4.wav，以及串好的 output/line_takes/audition.wav
+.\.venv\Scripts\python.exe audition.py output/line_takes --pick s3 -o output/line.wav
+```
+
+`audition.wav` 用嗶聲隔開各候選，印出來的表有每支「從第幾秒開始」、響度與高頻比；高頻比異常的標「可能有嘶聲」（門檻沿用 ai-video-workflow 的挑音規則），但最後還是以耳朵為準。只想看送進模型的文字（不載模型）：`clone.py "句子" --dry-run`。
+
 ### 生成多聲音對話
 
 ```powershell
 .\.venv\Scripts\python.exe dialogue.py
 ```
 
-對話內容請直接編輯 `dialogue.py` 中的 `dialogue` 清單。
+對話內容請直接編輯 `dialogue.py` 中的 `dialogue` 清單。每句會各自做後處理、調到同一個響度（−15 LUFS）再拼接，兩個人的聲音不會一大一小。
 
 ### 讀音替換表（念錯字時）
 
@@ -112,10 +124,12 @@ VoxCPM2 不支援注音標記，多音字、英文詞念錯只能改字。`clone
 | 十一少一 | 十一少了一 | 少讀 shǎo |
 | GPT-4 | GPT four | 英文型號的數字用英文念 |
 
+表放在本專案根目錄（`tts-lexicon.md`），單獨下載本 repo 就能用。同一份表在 [agent-video-specs](https://github.com/changyiwu/agent-video-specs)、[ai-video-workflow](https://github.com/changyiwu/ai-video-workflow)、[agent-speak-skill](https://github.com/changyiwu/agent-speak-skill) 也各有一份、內容相同。
+
 找表的順序（近的覆蓋遠的，同一個原文以近的為準）：
 
-1. 主表：環境變數 `TTS_LEXICON`；沒設就從本專案資料夾往上找 `ai-video-workflow/tts-lexicon.md`（與其他 TTS 專案共用的主表）
-2. 本專案根目錄的 `tts-lexicon.md`
+1. 同層另外三份（四個 repo 放在同一個資料夾底下時，有就一起讀）
+2. 本專案根目錄的 `tts-lexicon.md`（設了環境變數 `TTS_LEXICON` 就改讀它指的表）
 3. 輸出資料夾往上每一層的 `tts-lexicon.md`
 
 一份都找不到就印一行提示、照原文念。改寫盡量用同音字或補字；新增條目後重生那句實際聽過。試表不必載入模型：
@@ -134,6 +148,9 @@ voxcpm2-voice-cloner/
 ├── clone.py                  # Agent 工具：用聲音生成語音
 ├── dialogue.py               # Agent 工具：多聲音對話
 ├── tts_lexicon.py            # 讀音替換表載入（clone.py／dialogue.py 共用）
+├── tts-lexicon.md            # 讀音替換表（四個 TTS repo 各一份、內容相同）
+├── voice_prep.py             # 生成前後處理：繁轉簡、去靜音、濾波、−15 LUFS
+├── audition.py               # 候選串成試聽檔、挑一支（搭配 clone.py --takes）
 ├── record.py                 # 命令列錄音（備案）
 ├── start.bat                 # 雙擊啟動錄音 UI
 ├── install.bat               # 雙擊安裝

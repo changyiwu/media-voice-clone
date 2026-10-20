@@ -4,6 +4,9 @@
 模型只載入一次，逐句切換聲音生成，最後拼接成完整對話。
 
 要換聲音就改 SPEAKER_A / SPEAKER_B（對應 voices/ 目錄名），要換內容就改 dialogue 清單。
+
+每句送進模型前套讀音替換表＋繁轉簡；生成後每句各自去頭尾靜音、濾波、調到同一個響度（−15 LUFS）再拼接
+（voice_prep.py）。兩個人的聲音原本一大一小、句首句尾的空白長短不一，這樣處理後停頓只剩固定的 0.4 秒。
 """
 from voxcpm import VoxCPM
 import soundfile as sf
@@ -11,7 +14,8 @@ import numpy as np
 import time
 import os
 import sys
-from tts_lexicon import load_lexicon, speakable
+from tts_lexicon import load_lexicon
+import voice_prep as vp
 
 REPO_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -92,7 +96,7 @@ def main():
     for i, (speaker, text) in enumerate(dialogue, 1):
         ref_wav, prompt_text = voices[speaker]
         print(f"[{i}/{len(dialogue)}] {speaker}: {text}")
-        say_text = speakable(text, lexicon)
+        say_text = vp.to_model_text(text, lexicon)
         if say_text != text:
             print(f"        改寫後: {say_text}")
 
@@ -107,7 +111,8 @@ def main():
         )
         elapsed = time.time() - t1
         duration = len(wav) / model.tts_model.sample_rate
-        print(f"        -> {duration:.1f}s ({elapsed:.1f}s)")
+        wav, note = vp.finish(wav, model.tts_model.sample_rate)
+        print(f"        -> {duration:.1f}s ({elapsed:.1f}s)；後處理：{note}")
 
         # 句子之間加 0.4 秒停頓
         pause = np.zeros(int(0.4 * model.tts_model.sample_rate), dtype=wav.dtype)

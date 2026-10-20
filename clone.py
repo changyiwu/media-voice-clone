@@ -10,6 +10,10 @@ clone.py - 用 VoxCPM2 Ultimate Cloning 生成你的克隆語音。
   python clone.py --file my_script.txt
   python clone.py "文字" --output output/my_voice.wav
   python clone.py "文字" --reference my_ref.wav --text-file my_ref_text.txt
+  python clone.py "文字" --takes 4                 生 4 個候選（seed 1–4）＋試聽檔，用 audition.py 挑一支
+  python clone.py "文字" --dry-run                 只看送進模型的文字（讀音替換表＋繁轉簡），不載模型
+
+預設會做後處理（voice_prep.py）：去頭尾靜音、濾低頻轟聲與嘶聲、響度調到 −15 LUFS；--raw 跳過。
 """
 
 import os
@@ -69,6 +73,11 @@ def main():
     parser.add_argument('--text-file', '-t',
                         help='覆蓋逐字稿檔案路徑（預設由 --voice 決定）')
     parser.add_argument('--device', '-d', help='強制指定裝置 (cuda/mps/cpu)')
+    parser.add_argument('--takes', type=int, default=1,
+                        help='生成幾個候選（不同 seed）給你用耳朵挑；>1 時存到 <輸出檔名>_takes/ 並建試聽檔（見 audition.py）')
+    parser.add_argument('--raw', action='store_true',
+                        help='不做後處理（預設會去頭尾靜音、濾低頻轟聲與嘶聲、響度調到 −15 LUFS）')
+    parser.add_argument('--dry-run', action='store_true', help='只印出送進模型的文字（套讀音替換表＋繁轉簡），不載入模型')
     args = parser.parse_args()
 
     # 取得要生成的文字
@@ -82,11 +91,14 @@ def main():
         print('範例: python clone.py "你好，這是我的克隆聲音。"')
         sys.exit(1)
 
-    # 套讀音替換表（多音字、英文詞改字）；只改送進模型的文字，逐字稿不動
-    from tts_lexicon import load_lexicon, speakable
-    say_text = speakable(gen_text, load_lexicon(os.path.dirname(os.path.abspath(args.output))))
+    # 套讀音替換表（多音字、英文詞改字）再繁轉簡（VoxCPM2 念簡體比較穩）；只改送進模型的文字，逐字稿不動
+    from tts_lexicon import load_lexicon
+    import voice_prep as vp
+    say_text = vp.to_model_text(gen_text, load_lexicon(os.path.dirname(os.path.abspath(args.output))))
     if say_text != gen_text:
         print(f'改寫後: {say_text}')
+    if args.dry_run:
+        return
 
     # 根據 voice 名稱解析參考音和逐字稿
     reference, text_file = resolve_voice_files(args.voice, args.reference, args.text_file)
@@ -124,25 +136,50 @@ def main():
     )
     print(f'模型載入完成，耗時 {time.time()-t0:.1f}s')
 
-    # 生成語音
-    print(f'生成中（{len(say_text)} 字）...')
-    t1 = time.time()
-    wav = model.generate(
-        text=say_text,
-        prompt_wav_path=reference,
-        prompt_text=prompt_text,
-        reference_wav_path=reference,
-        cfg_value=2.0,
-        inference_timesteps=10,
-    )
-    elapsed = time.time() - t1
-    duration = len(wav) / model.tts_model.sample_rate
-    print(f'生成完成，耗時 {elapsed:.1f}s（語音長度 {duration:.1f}s，RTF={elapsed/duration:.1f}）')
+    sr = model.tts_model.sample_rate
+    if args.takes > 1:
+        stem, ext = os.path.splitext(args.output)
+        folder = f'{stem}_takes'
+        os.makedirs(folder, exist_ok=True)
+        jobs = [(seed, os.path.join(folder, f'{os.path.basename(stem)}_s{seed}{ext or ".wav"}'))
+                for seed in range(1, args.takes + 1)]
+    else:
+        os.makedirs(os.path.dirname(args.output) or '.', exist_ok=True)
+        jobs = [(None, args.output)]
 
-    # 存檔
-    os.makedirs(os.path.dirname(args.output) or '.', exist_ok=True)
-    sf.write(args.output, wav, model.tts_model.sample_rate)
-    print(f'已存檔: {args.output}')
+    for seed, out_path in jobs:
+        if seed is not None:                             # 固定 seed：同一句同一個 seed 每次結果相同，挑中的可以重現
+            import torch
+            torch.manual_seed(seed)
+            if torch.cuda.is_available():
+                torch.cuda.manual_seed_all(seed)
+        label = f'候選 s{seed}' if seed is not None else '生成'
+        print(f'{label}中（{len(say_text)} 字）...')
+        t1 = time.time()
+        wav = model.generate(
+            text=say_text,
+            prompt_wav_path=reference,
+            prompt_text=prompt_text,
+            reference_wav_path=reference,
+            cfg_value=2.0,
+            inference_timesteps=10,
+        )
+        elapsed = time.time() - t1
+        duration = len(wav) / sr
+        print(f'{label}完成，耗時 {elapsed:.1f}s（語音長度 {duration:.1f}s，RTF={elapsed/duration:.1f}）')
+        if seed is not None:                             # 嘶聲要在濾波前量（濾掉 11 kHz 以上後就看不太出來），記給 audition.py
+            import json
+            with open(os.path.splitext(out_path)[0] + '.json', 'w', encoding='utf-8') as f:
+                json.dump({'seed': seed, 'hf_raw': round(vp.hf_ratio(wav, sr), 3), 'text': say_text}, f, ensure_ascii=False)
+        if not args.raw:
+            wav, note = vp.finish(wav, sr)
+            print(f'後處理：去頭尾靜音、濾波，{note}')
+        sf.write(out_path, wav, sr)
+        print(f'已存檔: {out_path}')
+
+    if args.takes > 1:
+        import audition
+        audition.build(folder)
 
 
 if __name__ == '__main__':
