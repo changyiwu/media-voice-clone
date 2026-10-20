@@ -104,7 +104,7 @@ Agent 會自動找到對應聲音、生成語音、回傳音檔。
 .\.venv\Scripts\python.exe audition.py output/line_takes --pick s3 -o output/line.wav
 ```
 
-`audition.wav` 用嗶聲隔開各候選，印出來的表有每支「從第幾秒開始」、響度與高頻比；高頻比異常的標「可能有嘶聲」（門檻沿用 ai-video-workflow 的挑音規則），但最後還是以耳朵為準。只想看送進模型的文字（不載模型）：`clone.py "句子" --dry-run`。
+`audition.wav` 用嗶聲隔開各候選，印出來的表有每支「從第幾秒開始」、響度與高頻比；高頻比異常的標「可能有嘶聲」（門檻沿用 media-short-film 的挑音規則），但最後還是以耳朵為準。只想看送進模型的文字（不載模型）：`clone.py "句子" --dry-run`。
 
 ### 生成多聲音對話
 
@@ -124,7 +124,7 @@ VoxCPM2 不支援注音標記，多音字、英文詞念錯只能改字。`clone
 | 十一少一 | 十一少了一 | 少讀 shǎo |
 | GPT-4 | GPT four | 英文型號的數字用英文念 |
 
-表放在本專案根目錄（`tts-lexicon.md`），單獨下載本 repo 就能用。同一份表在 [agent-video-specs](https://github.com/changyiwu/agent-video-specs)、[ai-video-workflow](https://github.com/changyiwu/ai-video-workflow)、[agent-speak-skill](https://github.com/changyiwu/agent-speak-skill) 也各有一份、內容相同。
+表放在本專案根目錄（`tts-lexicon.md`），單獨下載本 repo 就能用。同一份表在 [media-video-specs](https://github.com/changyiwu/media-video-specs)、[media-short-film](https://github.com/changyiwu/media-short-film)、[agent-speak](https://github.com/changyiwu/agent-speak) 也各有一份、內容相同。
 
 找表的順序（近的覆蓋遠的，同一個原文以近的為準）：
 
@@ -141,7 +141,7 @@ VoxCPM2 不支援注音標記，多音字、英文詞念錯只能改字。`clone
 ## 目錄結構
 
 ```
-voxcpm2-voice-cloner/
+media-voice-clone/
 ├── record_ui.py              # 錄音 UI（唯一介面，僅用標準庫）
 ├── app.py                    # 舊版錄音 UI（gradio，見下方注意事項）
 ├── webui_record.py           # 舊版網頁錄音（gradio）

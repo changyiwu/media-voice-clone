@@ -3,16 +3,16 @@
 voice_prep.py - VoxCPM2 生成前後的處理，clone.py、dialogue.py、audition.py 共用。
 
 生成前（文字）：
-  to_model_text(text, lexicon)  讀音替換表 → 繁轉簡。VoxCPM2 念簡體字比繁體穩（ai-video-workflow 實測），
+  to_model_text(text, lexicon)  讀音替換表 → 繁轉簡。VoxCPM2 念簡體字比繁體穩（media-short-film 實測），
                                 沒裝 opencc 就跳過繁轉簡、印一行提示，不影響生成。字幕、逐字稿照原文。
 生成後（聲音，numpy 陣列）：
   finish(wav, sr)  去頭尾靜音（保留開頭 80 ms、結尾 150 ms）→ highpass 70 Hz＋lowpass 11 kHz（濾低頻轟聲與嘶聲）
-                   → 響度調到 TARGET_LUFS（−15，與 agent-video-specs、ai-video-workflow 的成片目標相同），
+                   → 響度調到 TARGET_LUFS（−15，與 media-video-specs、media-short-film 的成片目標相同），
                    取樣峰值不超過 −1 dBFS（會超過就少加一點增益，不壓縮動態）
   lufs(wav, sr)    整合響度（ITU-R BS.1770，K 加權＋閘門；跟 ffmpeg ebur128 同一套量法）
   hf_ratio(wav, sr) 4 kHz 以上能量佔比：正常人聲 0.01–0.2，VoxCPM2 偶爾生出 0.5 以上的嘶聲版本
 
-做法改編自 ai-video-workflow 的 voxcpm_batch.py（繁轉簡）、voice_pick.py（去靜音、高頻比）與
+做法改編自 media-short-film 的 voxcpm_batch.py（繁轉簡）、voice_pick.py（去靜音、高頻比）與
 make_film.py cut（每句濾波、每句同響度再混）。需要：numpy、scipy、librosa（voxcpm 已帶）；
 繁轉簡選用 opencc-python-reimplemented（install.ps1 會裝）。
 """

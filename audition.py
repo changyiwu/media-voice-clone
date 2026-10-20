@@ -11,7 +11,7 @@ clone.py --takes 4 會在 <輸出檔名>_takes/ 生出 s1…s4，並自動建好
 
 候選之間用嗶聲隔開（照順序 s1、s2…）；看印出來的「從第幾秒開始」對照。
 高頻比（4 kHz 以上能量佔比）超過 max(0.30, 中位數 × 3) 標「可能有嘶聲」，響度跟中位數差 6 dB 以上標「音量離群」
-——門檻沿用 ai-video-workflow 的 voice_pick.py。標出來的通常不要選，但最後還是以耳朵為準。
+——門檻沿用 media-short-film 的 voice_pick.py。標出來的通常不要選，但最後還是以耳朵為準。
 """
 import argparse
 import json

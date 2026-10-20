@@ -22,7 +22,7 @@
 ## 資料夾結構
 
 ```
-voxcpm2-voice-cloner/
+media-voice-clone/
 ├── AGENTS.md                 # 本檔：跨 Agent 專案藍圖
 ├── CLAUDE.md                 # 橋接檔（@AGENTS.md）
 ├── handoff.md                # 交接檔
@@ -51,14 +51,14 @@ voxcpm2-voice-cloner/
 | 層級 | 平台 | 位置 | 讀取時機 |
 |------|------|------|---------|
 | L1 | 本地（GDrive） | `AGENTS.md`＋`handoff.md`＋`CLAUDE.md`（橋接） | 每個 session |
-| L2 | GitHub | [changyiwu/voxcpm2-voice-cloner](https://github.com/changyiwu/voxcpm2-voice-cloner)（**公開**） | 指定時 |
-| L3 | Obsidian | `voxcpm2-voice-cloner/專案工作流程.md` | 有需要時 |
+| L2 | GitHub | [changyiwu/media-voice-clone](https://github.com/changyiwu/media-voice-clone)（**公開**） | 指定時 |
+| L3 | Obsidian | `media-voice-clone/專案工作流程.md` | 有需要時 |
 
 ## 環境
 
 | 項目 | 值 |
 |------|-----|
-| 專案目錄 | 雲端硬碟的 `agents/voxcpm2-voice-cloner`（實際絕對路徑每台不同，一律以 cwd 為準） |
+| 專案目錄 | 雲端硬碟的 `agents/media-voice-clone`（實際絕對路徑每台不同，一律以 cwd 為準） |
 | Python | Windows `.venv\Scripts\python.exe`／macOS `.venv/bin/python`（專案目錄下，由 `install.ps1` 建立） |
 | 模型 | `openbmb/VoxCPM2`（Apache-2.0；權重已在 HuggingFace 快取） |
 | 裝置 | 三種模式自動切換：NVIDIA CUDA／Apple Silicon MPS／CPU。安裝時寫進 `.gpu_type`，`clone.py` 與 `dialogue.py` 讀它 |
@@ -106,7 +106,7 @@ voxcpm2-voice-cloner/
 - `--raw`：跳過後處理（預設：去頭尾靜音、highpass 70 Hz＋lowpass 11 kHz、響度 −15 LUFS、取樣峰值 ≤ −1 dBFS）
 - `--dry-run`：只印送進模型的文字（讀音替換表＋繁轉簡），不載模型
 
-送進模型前一律經 `voice_prep.to_model_text()`：讀音替換表 → 繁轉簡（VoxCPM2 念簡體比較穩，ai-video-workflow 實測；沒裝 opencc 就跳過）。生成後經 `voice_prep.finish()`。響度 −15 LUFS 跟 agent-video-specs、ai-video-workflow 的成片目標一致。嘶聲（4 kHz 以上能量比）要在濾波**前**量，`--takes` 會記在每支候選旁的 `.json`，`audition.py` 優先用它。
+送進模型前一律經 `voice_prep.to_model_text()`：讀音替換表 → 繁轉簡（VoxCPM2 念簡體比較穩，media-short-film 實測；沒裝 opencc 就跳過）。生成後經 `voice_prep.finish()`。響度 −15 LUFS 跟 media-video-specs、media-short-film 的成片目標一致。嘶聲（4 kHz 以上能量比）要在濾波**前**量，`--takes` 會記在每支候選旁的 `.json`，`audition.py` 優先用它。
 
 ### dialogue.py — 用多個聲音生成對話
 
@@ -124,10 +124,10 @@ voxcpm2-voice-cloner/
 
 `clone.py`、`dialogue.py` 送進模型前會先套 `tts-lexicon.md`（`| 原文 | 改寫 | 說明 |`），把念錯的多音字、英文詞改字（奇數→基數、十一少一→十一少了一、GPT-4→GPT four），並印出「改寫後」的文字。參考音逐字稿（`prompt.txt`）不替換。
 
-- **表在本專案根目錄**（`tts-lexicon.md`）。這份表有**四份、內容逐位元組相同**（另外三份在 agent-video-specs、ai-video-workflow、agent-speak-skill/speak/；四個 repo 都公開，各自單獨下載就要能用）。`tts_lexicon.py` 以自己的位置為起點（不靠 cwd）往上找另外三份，有就一起讀，本專案這份優先；設了 `TTS_LEXICON` 就改讀它指的表來取代本專案這份
+- **表在本專案根目錄**（`tts-lexicon.md`）。這份表有**四份、內容逐位元組相同**（另外三份在 media-video-specs、media-short-film、agent-speak/speak/；四個 repo 都公開，各自單獨下載就要能用）。`tts_lexicon.py` 以自己的位置為起點（不靠 cwd）往上找另外三份，有就一起讀，本專案這份優先；設了 `TTS_LEXICON` 就改讀它指的表來取代本專案這份
 - **覆蓋**：輸出資料夾往上每一層的同名 `tts-lexicon.md`，近的優先（只對某批輸出有效的條目放這裡）
 - 找不到任何表只印一行提示、照原文念，不報錯
-- **使用者說某個詞念錯了** → 條目**四份一起加**（說明欄寫正確讀音、出處、是否已人耳確認），用 `python ../ai-video-workflow/tools/tts_lexicon.py --check`／`--sync` 檢查與合併。加完重生那句給使用者聽
+- **使用者說某個詞念錯了** → 條目**四份一起加**（說明欄寫正確讀音、出處、是否已人耳確認），用 `python ../media-short-film/tools/tts_lexicon.py --check`／`--sync` 檢查與合併。加完重生那句給使用者聽
 - 試表不必載模型：`.\.venv\Scripts\python.exe tts_lexicon.py "句子"`
 - 本專案是獨立公開 repo，**不要 import 別的 repo 的程式**；解析規則改了四個 repo 各自改
 
@@ -163,21 +163,21 @@ voxcpm2-voice-cloner/
 
 | 使用者說的 | Agent 動作 |
 |-----------|-----------|
-| 「用OOO的聲音念出／說出／講出XXX」 | 走 `voice-cloner` 全域技能（見下節）；沒裝技能就直接 `clone.py "XXX" --voice OOO` |
+| 「用OOO的聲音念出／說出／講出XXX」 | 走 `voice-clone` 全域技能（見下節）；沒裝技能就直接 `clone.py "XXX" --voice OOO` |
 | 「讓A和B對話」 | 編輯 `dialogue.py` 對話清單 → 執行 |
 | 「有哪些聲音」 | `ls voices\` |
 | 「XX 念錯了」「XX 要念成 OO」 | 四個 repo 的讀音替換表一起加一列 → 重生那句（見〈tts_lexicon.py〉） |
 | 「念得怪怪的」「換一個版本」「聲調不對但字沒錯」 | `clone.py ... --takes 4` → 把 `audition.wav` 交給使用者聽 → `audition.py --pick` |
 | 「我要錄聲音」 | 引導使用者雙擊 `start.bat`，或開啟 http://127.0.0.1:7860 |
 
-## 全域技能 voice-cloner
+## 全域技能 voice-clone
 
 讓四家 Agent 在**任何工作目錄**都能用「用小吳的聲音念出……」這句話直接生成語音。
 
 - **原始檔**：`skills/voice-cloner/SKILL.md`（本專案內）。`skills/` 已加進 `.gitignore`——技能含本機絕對路徑與個人聲音名稱，**不進這個公開 repo**，跨電腦只靠 Google 雲端硬碟同步
 - **安裝副本四份**：Claude Code `~/.claude/skills/`、Codex `~/.agents/skills/`、OpenCode `~/.config/opencode/skills/`、Antigravity `~/.gemini/config/skills/`
-- **改完原始檔**說一句「同步技能」，交給全域技能 `sync-skills` 覆蓋四份副本
-- **換電腦的第一次**：`sync-skills` 只覆蓋已裝過的副本，所以會回報 `voice-cloner` 未安裝並徵求同意首裝——答應即可
+- **改完原始檔**說一句「同步技能」，交給全域技能 `skill-sync` 覆蓋四份副本
+- **換電腦的第一次**：`skill-sync` 只覆蓋已裝過的副本，所以會回報 `voice-clone` 未安裝並徵求同意首裝——答應即可
 - 技能行為：預設聲音 `小吳`、文字走暫存檔＋`--file`（避開 PowerShell 標點問題）、輸出帶時間戳（不蓋掉上一次）、把音檔本身交給使用者
 
 ## 三個檔案的職責（依「時效性」分家，不是依「詳細程度」）
@@ -194,13 +194,13 @@ voxcpm2-voice-cloner/
 
 ## 專案專屬規則
 
-- **`skills/` 不進版控**。`voice-cloner` 的原始檔在 `skills/voice-cloner/`，含本機絕對路徑與個人聲音名稱，而 repo 是公開的，所以已 gitignore。**跨電腦只靠 GDrive 同步**（跟 `handoff.md` 同一套做法）——換電腦前確認雲端同步跑完。`voices/`、`output/` 同樣不進版控
+- **`skills/` 不進版控**。`voice-clone` 的原始檔在 `skills/voice-cloner/`，含本機絕對路徑與個人聲音名稱，而 repo 是公開的，所以已 gitignore。**跨電腦只靠 GDrive 同步**（跟 `handoff.md` 同一套做法）——換電腦前確認雲端同步跑完。`voices/`、`output/` 同樣不進版控
 - **不要開 `optimize=True`**。本機沒有 triton／`cl.exe`，`torch.compile` 會被 `try/except` 靜默降級（只印 `Warning: torch.compile disabled - triton is not installed`），速度零改善卻多花 3.3 秒載入
 - **模型載入偶爾變 60～90 秒是正常的**：HuggingFace 快取在重新驗證（Windows 無 symlink），不是壞掉，等它跑完即可。正常約 9.7 秒
 - **全域技能不能用相對路徑**：venv 直譯器的相對路徑在非專案目錄會 `CommandNotFoundException`，一律用絕對路徑（兩平台的檔名不同，先偵測再組）
 - **沙箱會擋下 `Remove-Item -Recurse -Force`**（回報 `path '*' is blocked`），改用 `[System.IO.Directory]::Delete($p,$true)`
 - **Smart App Control 的限制目前只在 PC-YI-SL 驗證過**，其他電腦未實測；生成路徑不受影響
-- **所有檔案一律 UTF-8 無 BOM**（`.ps1` 也是）。舊的「`.ps1` 要存成 UTF-8 with BOM」規則前提是 PowerShell 5.1，已隨 pwsh 7 定案而廢止；`SKILL.md` 有 BOM 會讓 frontmatter 解析失敗、技能觸發不了。詳見 `cross-device-agent-skills/platform.md`
+- **所有檔案一律 UTF-8 無 BOM**（`.ps1` 也是）。舊的「`.ps1` 要存成 UTF-8 with BOM」規則前提是 PowerShell 5.1，已隨 pwsh 7 定案而廢止；`SKILL.md` 有 BOM 會讓 frontmatter 解析失敗、技能觸發不了。詳見 `agent-project-flow/platform.md`
 - repo 為**公開**，新增檔案前先確認不含個資
 
 ## 工作約定

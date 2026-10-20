@@ -4,7 +4,7 @@ tts_lexicon.py - 讀音替換表：送進 VoxCPM2 前把念錯的詞換成念得
 
 VoxCPM2 不支援注音標記，多音字、英文詞念錯只能改字。表在本專案根目錄的 tts-lexicon.md（Markdown 表格
 「| 原文 | 改寫 | 說明 |」，格式規則寫在表的開頭）。只改送進模型的文字，參考音的逐字稿（prompt.txt）不受影響。
-這份表有四份、內容完全相同（另外三份在 agent-video-specs、ai-video-workflow、agent-speak-skill/speak/；
+這份表有四份、內容完全相同（另外三份在 media-video-specs、media-short-film、agent-speak/speak/；
 四個 repo 都公開，各自單獨下載就能用），放在同一層時合併讀取。
 
 找表的順序（近的覆蓋遠的，同一個原文以近的為準；都以本檔所在位置為起點，從任何工作目錄呼叫都找得到）：
@@ -24,7 +24,7 @@ NAME = 'tts-lexicon.md'
 REPO = Path(__file__).resolve().parent
 HEAD = ('原文', '改寫')
 # 同內容的另外三份（repo 名稱, 表在 repo 裡的位置）
-SIBLINGS = [('agent-video-specs', NAME), ('ai-video-workflow', NAME), ('agent-speak-skill', f'speak/{NAME}')]
+SIBLINGS = [('media-video-specs', NAME), ('media-short-film', NAME), ('agent-speak', f'speak/{NAME}')]
 
 
 def siblings():

@@ -1,4 +1,4 @@
-# 刻意保留平台專屬寫法的檔案，由 cross-device-agent-skills/tools/check-platform.py 讀取。
+# 刻意保留平台專屬寫法的檔案，由 agent-project-flow/tools/check-platform.py 讀取。
 # 加進來之前先確認：這個檔案的平台專屬寫法是「設計如此」，不是「還沒改」。
 
 # 指令範例以 Windows 形式呈現，檔案開頭已註明 macOS 的對應路徑（./.venv/bin/python）。
