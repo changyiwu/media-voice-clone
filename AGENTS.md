@@ -41,7 +41,7 @@ media-voice-clone/
 ├── install.bat / install.ps1 # 自動偵測 GPU + 安裝依賴
 ├── .gpu_type                 # 安裝時寫入的 GPU 模式標記
 ├── texts/sample_text.txt     # 錄音時朗讀的文字
-├── skills/voice-cloner/      # 全域技能原始檔（不進版控，見下方「全域技能」）
+├── skills/voice-clone/      # 全域技能原始檔（不進版控，見下方「全域技能」）
 ├── voices/                   # 已錄製的聲音（不進版控）
 └── output/                   # 生成的語音（不進版控）
 ```
@@ -174,7 +174,7 @@ media-voice-clone/
 
 讓四家 Agent 在**任何工作目錄**都能用「用小吳的聲音念出……」這句話直接生成語音。
 
-- **原始檔**：`skills/voice-cloner/SKILL.md`（本專案內）。`skills/` 已加進 `.gitignore`——技能含本機絕對路徑與個人聲音名稱，**不進這個公開 repo**，跨電腦只靠 Google 雲端硬碟同步
+- **原始檔**：`skills/voice-clone/SKILL.md`（本專案內）。`skills/` 已加進 `.gitignore`——技能含本機絕對路徑與個人聲音名稱，**不進這個公開 repo**，跨電腦只靠 Google 雲端硬碟同步
 - **安裝副本四份**：Claude Code `~/.claude/skills/`、Codex `~/.agents/skills/`、OpenCode `~/.config/opencode/skills/`、Antigravity `~/.gemini/config/skills/`
 - **改完原始檔**說一句「同步技能」，交給全域技能 `skill-sync` 覆蓋四份副本
 - **換電腦的第一次**：`skill-sync` 只覆蓋已裝過的副本，所以會回報 `voice-clone` 未安裝並徵求同意首裝——答應即可
@@ -194,7 +194,7 @@ media-voice-clone/
 
 ## 專案專屬規則
 
-- **`skills/` 不進版控**。`voice-clone` 的原始檔在 `skills/voice-cloner/`，含本機絕對路徑與個人聲音名稱，而 repo 是公開的，所以已 gitignore。**跨電腦只靠 GDrive 同步**（跟 `handoff.md` 同一套做法）——換電腦前確認雲端同步跑完。`voices/`、`output/` 同樣不進版控
+- **`skills/` 不進版控**。`voice-clone` 的原始檔在 `skills/voice-clone/`，含本機絕對路徑與個人聲音名稱，而 repo 是公開的，所以已 gitignore。**跨電腦只靠 GDrive 同步**（跟 `handoff.md` 同一套做法）——換電腦前確認雲端同步跑完。`voices/`、`output/` 同樣不進版控
 - **不要開 `optimize=True`**。本機沒有 triton／`cl.exe`，`torch.compile` 會被 `try/except` 靜默降級（只印 `Warning: torch.compile disabled - triton is not installed`），速度零改善卻多花 3.3 秒載入
 - **模型載入偶爾變 60～90 秒是正常的**：HuggingFace 快取在重新驗證（Windows 無 symlink），不是壞掉，等它跑完即可。正常約 9.7 秒
 - **全域技能不能用相對路徑**：venv 直譯器的相對路徑在非專案目錄會 `CommandNotFoundException`，一律用絕對路徑（兩平台的檔名不同，先偵測再組）
