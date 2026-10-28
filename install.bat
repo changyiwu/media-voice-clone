@@ -8,26 +8,24 @@ echo   VoxCPM2 Voice Cloner - 一鍵安裝
 echo ============================================
 echo.
 echo 本安裝需要：
-echo   - Python 3.10~3.12（若無會自動用 uv 安裝）
-echo   -約 5GB 硬碟空間（模型權重）
+echo   - PowerShell 7（pwsh）
+echo   - 約 5GB 硬碟空間（模型權重）；Python 3.12 由 uv 自動安裝
 echo   - 麥克風
 echo.
 
-:: ========== 檢查 Python ==========
-where python >nul 2>&1
+:: ========== 檢查 PowerShell 7 ==========
+:: install.ps1 需要 pwsh；Windows 內建的 powershell.exe 是 5.1，跑不了
+where pwsh >nul 2>&1
 if errorlevel 1 (
-    echo [錯誤] 找不到 Python，請先安裝 Python 3.10~3.12
-    echo 下載: https://www.python.org/downloads/
+    echo [錯誤] 找不到 PowerShell 7（pwsh），請先安裝：
+    echo   winget install --id Microsoft.PowerShell
     echo.
     pause
     exit /b 1
 )
 
-echo Python 已就緒，開始安裝...
-echo.
-
 :: ========== 執行安裝腳本 ==========
-powershell.exe -ExecutionPolicy Bypass -File "install.ps1"
+pwsh -NoProfile -ExecutionPolicy Bypass -File "install.ps1"
 
 if errorlevel 1 (
     echo.

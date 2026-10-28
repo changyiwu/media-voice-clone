@@ -13,7 +13,6 @@ import soundfile as sf
 import numpy as np
 import time
 import os
-import sys
 from tts_lexicon import load_lexicon
 import voice_prep as vp
 
@@ -36,32 +35,17 @@ dialogue = [
 ]
 
 def detect_device():
-    """從 install.ps1 產生的 .gpu_type 讀取，或自動偵測。"""
-    gpu_type_file = os.path.join(REPO_DIR, '.gpu_type')
-    if os.path.exists(gpu_type_file):
-        with open(gpu_type_file, 'r', encoding='utf-8') as f:
-            gpu_type = f.read().strip()
-    else:
-        import torch
-        if torch.cuda.is_available():
-            gpu_type = 'cuda'
-        elif getattr(torch.backends, 'mps', None) and torch.backends.mps.is_available():
-            gpu_type = 'mps'          # Apple Silicon
-        else:
-            gpu_type = 'cpu'
+    """問這台的 torch 有什麼可用：cuda → mps → cpu。
 
-    if gpu_type not in ('cuda', 'mps', 'cpu'):
-        return 'cpu'
-    # .gpu_type 跟著雲端硬碟同步，可能是別台寫的（例如桌機寫 cuda、Windows on ARM 筆電用不到），
-    # 所以實際可不可用還要再確認一次
-    if gpu_type != 'cpu':
-        import torch
-        ok = torch.cuda.is_available() if gpu_type == 'cuda' else (
-            getattr(torch.backends, 'mps', None) is not None and torch.backends.mps.is_available())
-        if not ok:
-            print(f'⚠️ .gpu_type 是 {gpu_type}，但這台用不到，改用 CPU（會較慢）。', file=sys.stderr)
-            return 'cpu'
-    return gpu_type
+    不讀舊版 install.ps1 寫的 .gpu_type：它跟著雲端硬碟同步，是最後一台跑安裝的電腦寫的，
+    兩個方向都會錯（別台寫 cpu 會讓有 GPU 的這台跑 CPU）。
+    """
+    import torch
+    if torch.cuda.is_available():
+        return 'cuda'
+    if getattr(torch.backends, 'mps', None) is not None and torch.backends.mps.is_available():
+        return 'mps'          # Apple Silicon
+    return 'cpu'
 
 def load_voice(voice_name):
     """讀取指定聲音的參考音與逐字稿。"""

@@ -18,6 +18,7 @@
 - [x] 階段三：錄音 UI 可用（`record_ui.py`，繞過 Smart App Control 封鎖）
 - [x] 階段四：評估 `optimize=True` — **結案：維持 `False`**。本機沒有 triton／`cl.exe`，`torch.compile` 會被靜默降級（`Warning: torch.compile disabled - triton is not installed`），暖機後 RTF 兩者同為 1.17、VRAM 同為 6.46GB，但 `optimize=True` 會多跑一次暖機生成、載入從 9.7s 變 13.0s。要真正生效得裝非官方的 `triton-windows`＋MSVC，有 Smart App Control 封鎖風險，不划算
 - [ ] 階段五：評估常駐生成服務（現在每次執行 `clone.py` 都要重載模型約 10 秒）
+- [x] 階段六：RTX Spark（Windows on ARM）用 GPU 生成——`install.ps1` 建原生 ARM64＋CUDA 環境（NVIDIA 預覽版 PyTorch），**RTF 1.7**，失敗退回 x64 CPU（見〈裝置偵測〉）
 
 ## 資料夾結構
 
@@ -38,8 +39,10 @@ media-voice-clone/
 ├── app.py                    # 舊版錄音 UI（gradio，本機無法執行）
 ├── webui_record.py           # 舊版網頁錄音（gradio，本機無法執行）
 ├── start.bat                 # 雙擊啟動錄音 UI
-├── install.bat / install.ps1 # 自動偵測 GPU + 安裝依賴
-├── .gpu_type                 # 安裝時寫入的 GPU 模式標記
+├── install.bat / install.ps1 # 自動偵測 GPU + 安裝依賴（環境建在 ~/.local/share/media-voice-clone/.venv）
+├── sac-pins.txt              # Smart App Control 放行的套件版本（install.ps1 被擋時才用）
+├── requirements-win-arm64.txt # Windows on ARM＋NVIDIA 的原生 ARM64＋CUDA 環境套件（含固定的預覽版 torch）
+├── shims/sklearn-unavailable/ # scikit-learn 被 SAC 擋時的 import 空殼（只給上面那個環境用）
 ├── texts/sample_text.txt     # 錄音時朗讀的文字
 ├── skills/voice-clone/      # 全域技能原始檔（不進版控，見下方「全域技能」）
 ├── voices/                   # 已錄製的聲音（不進版控）
@@ -59,13 +62,13 @@ media-voice-clone/
 | 項目 | 值 |
 |------|-----|
 | 專案目錄 | 雲端硬碟的 `agents/media-voice-clone`（實際絕對路徑每台不同，一律以 cwd 為準） |
-| Python | Windows `.venv\Scripts\python.exe`／macOS `.venv/bin/python`（專案目錄下，由 `install.ps1` 建立） |
+| Python | **本機共用位置，不在專案裡**：Windows `~\.local\share\media-voice-clone\.venv\Scripts\python.exe`／macOS `~/.local/share/media-voice-clone/.venv/bin/python`（由 `install.ps1` 建立）。下文指令裡的 `$py` 就是它，每個新 shell 先設：`$py = "$HOME\.local\share\media-voice-clone\.venv\Scripts\python.exe"` |
 | 模型 | `openbmb/VoxCPM2`（Apache-2.0；權重已在 HuggingFace 快取） |
-| 裝置 | 三種模式自動切換：NVIDIA CUDA／Apple Silicon MPS／CPU。安裝時寫進 `.gpu_type`，`clone.py` 與 `dialogue.py` 讀它 |
-| 效能 | 模型載入 ~9.7 秒（每次執行都要重載），尖峰 VRAM 6.46GB。RTF 隨稿長變化：719 字長稿 **1.0**、中等句 1.1~1.3、10 字以內短句 2.5~2.9（固定開銷攤不掉）。**長稿一次念完比拆成多次划算** |
+| 裝置 | 三種模式自動切換：NVIDIA CUDA／Apple Silicon MPS／CPU。`clone.py` 與 `dialogue.py` 直接問 torch（見〈裝置偵測〉） |
+| 效能 | 模型載入 ~9.7 秒（每次執行都要重載），尖峰 VRAM 6.46GB。RTF 隨稿長變化：719 字長稿 **1.0**、中等句 1.1~1.3、10 字以內短句 2.5~2.9（固定開銷攤不掉）。**長稿一次念完比拆成多次划算**。Windows on ARM（LT-YI-RS）：原生 ARM64＋RTX Spark GPU **RTF 1.7**、載入約 25 秒；退回 x64 模擬＋CPU 時極慢（**RTF ~42**，5.9 秒語音要 4 分鐘） |
 | 輸出 | `output/cloned_voice.wav`（`--output` 可改） |
 
-> 所有指令都以專案目錄為工作目錄執行。若尚未安裝（`.venv` 不存在）：Windows 請使用者雙擊 `install.bat`，macOS 跑 `pwsh -File install.ps1`（`.bat` 是 Windows 專屬啟動器，mac 沒有）。
+> 所有指令都以專案目錄為工作目錄執行。若尚未安裝（`$py` 不存在）：Windows 請使用者雙擊 `install.bat`，macOS 跑 `pwsh -File install.ps1`（`.bat` 是 Windows 專屬啟動器，mac 沒有）。
 
 ### ⚠️ 環境限制：Smart App Control（PC-YI-SL）
 
@@ -77,7 +80,9 @@ media-voice-clone/
 - 錄音一律用 **`record_ui.py`**：只用 Python 標準庫的 `http.server`，完全避開 pandas/pyarrow。
 - torch、torchaudio、voxcpm、transformers、soundfile、sounddevice、numpy、resampy 均不受影響；`clone.py` 的生成路徑已實測不受影響。
 
-> Agent 若看到上述 ImportError，**不要重裝套件**，那不會有幫助；改走不依賴該套件的路徑。
+> Agent 若看到上述 ImportError，**不要重裝同一版套件**，那不會有幫助；改走不依賴該套件的路徑，或換成 SAC 已放行的舊版。
+
+**LT-YI-RS（Windows on ARM）也開著 SAC**，而且連生成路徑都會被擋：太新的 wheel 信譽不夠（torch 2.14.1 的 `torch_python.dll`、torchaudio 2.10 的 `_torchaudio`、numba 0.68.1 的 `_dynfunc`）。`install.ps1` 的處理：先裝最新版，驗證碰到 `WinError 4551` 就改用 `sac-pins.txt` 的版本重裝。新的套件被擋時，在 `sac-pins.txt` 加一行已放行的版本（越舊越容易過），不要整包降版。
 
 > 另一個相關坑：本機只有 Windows PowerShell 5.1（無 pwsh），會用 big5 讀取無 BOM 的 `.ps1`，導致中文腳本 parse 失敗。專案內的 `.ps1` 已加上 UTF-8 BOM，新增 `.ps1` 時請比照辦理。
 
@@ -93,7 +98,7 @@ media-voice-clone/
 ### clone.py — 用已錄製的聲音生成語音
 
 ```powershell
-.\.venv\Scripts\python.exe clone.py "同學們早安，今天我們來上數學課。" --voice 小吳
+& $py clone.py "同學們早安，今天我們來上數學課。" --voice 小吳
 ```
 
 常用參數：
@@ -111,7 +116,7 @@ media-voice-clone/
 ### dialogue.py — 用多個聲音生成對話
 
 ```powershell
-.\.venv\Scripts\python.exe dialogue.py
+& $py dialogue.py
 ```
 
 - 換聲音：改腳本頂部的 `SPEAKER_A` / `SPEAKER_B` 兩個常數（預設 `小吳` / `老柯`），對話清單與輸出檔名都會跟著走
@@ -128,13 +133,13 @@ media-voice-clone/
 - **覆蓋**：輸出資料夾往上每一層的同名 `tts-lexicon.md`，近的優先（只對某批輸出有效的條目放這裡）
 - 找不到任何表只印一行提示、照原文念，不報錯
 - **使用者說某個詞念錯了** → 條目**四份一起加**（說明欄寫正確讀音、出處、是否已人耳確認），用 `python ../media-short-film/tools/tts_lexicon.py --check`／`--sync` 檢查與合併。加完重生那句給使用者聽
-- 試表不必載模型：`.\.venv\Scripts\python.exe tts_lexicon.py "句子"`
+- 試表不必載模型：`& $py tts_lexicon.py "句子"`
 - 本專案是獨立公開 repo，**不要 import 別的 repo 的程式**；解析規則改了四個 repo 各自改
 
 ### record_ui.py — 錄音 UI
 
 ```powershell
-.\.venv\Scripts\python.exe record_ui.py --open
+& $py record_ui.py --open
 ```
 
 瀏覽器端用 MediaRecorder 收音，經 Web Audio 重採樣成 16kHz 單聲道後在前端編成 WAV；伺服器端只用標準庫 `http.server`，存檔用 `soundfile`。只綁 `127.0.0.1`，不對外開放。
@@ -150,14 +155,29 @@ media-voice-clone/
 
 ## 裝置偵測
 
-執行 `clone.py` / `dialogue.py` 時自動偵測，順序為：讀取 `.gpu_type`（`install.ps1` 產生）→ 若無則用 torch 偵測。
+`clone.py`／`dialogue.py` 的 `detect_device()` **直接問這台的 torch**：cuda → mps → cpu；`--device` 可強制指定。
 
-- NVIDIA GPU → CUDA
-- 無獨顯 → CPU（較慢）
-- Windows on ARM（含 RTX Spark 的 NVIDIA GPU）→ 一律 CPU，`.venv` 必須是 **x64** 環境（`install.ps1` 會指定 `cpython-3.12-windows-x86_64-none`）。原生 ARM64 環境裝不起 voxcpm（`torchaudio`、`pyarrow`、`tiktoken`、`soxr` 都沒有 win_arm64 wheel），不要嘗試
-- `.gpu_type` 跟著雲端硬碟同步、可能是別台寫的，所以 `detect_device()` 讀到後會再確認一次這台真的可用，不可用就退回 CPU
+- **不再用 `.gpu_type`**：它跟著雲端硬碟同步，是最後一台跑安裝的電腦寫的，兩個方向都會錯（NB-Yi 寫 `cpu` 會讓有 GPU 的 PC-YI-SL 跑 CPU）。`install.ps1` 不再寫它，還會刪掉舊檔
+- 用不用得到 GPU 取決於**這台的環境裝的是哪種 torch**，那是 `install.ps1` 依硬體決定的：
+  - NVIDIA GPU（x64 Windows）→ cu128 版 torch
+  - Apple Silicon → PyPI 預設版（含 MPS）
+  - 無獨顯 → CPU 版
+  - **Windows on ARM＋NVIDIA（RTX Spark）→ 原生 ARM64＋CUDA**，失敗才退回 x64 CPU（見下）
+  - Windows on ARM、沒有 NVIDIA → 先試原生 ARM64 CPU，不行改建 x64（Prism 模擬）。原生 CPU 目前不行：torchaudio 官方沒有 win_arm64 wheel
+- 不支援 Intel Arc（XPU）
 
-> 只支援 CUDA 與 CPU 兩種模式，不支援 Intel Arc（XPU）。`.gpu_type` 若出現 `xpu` 等無效值，一律退回 CPU。
+### Windows on ARM＋RTX Spark 的 GPU 環境
+
+2026-10-28 LT-YI-RS 實測：**RTF 1.7**（暖機後；第一句 2.9），比 x64 CPU 環境（RTF ~45）快約 27 倍，接近 RTX 5060 Ti。`install.ps1` 的做法：
+
+- **原生 ARM64、Python 3.13**（NVIDIA 只出 cp313）。套件全在 `requirements-win-arm64.txt`，voxcpm 另外 `--no-deps` 裝
+- **torch／torchaudio 固定在 [NVIDIA/pytorch-windows-ci releases](https://github.com/NVIDIA/pytorch-windows-ci/releases) 的一批 `woa-nightly-*`**（現為 `2.16.0.dev20261027+cu134`），需求檔裡是直接 URL＋`#sha256=`，由 uv 驗證。nightly 每天一批、torch 與 torchaudio 同批建置；換版本時兩行一起換、sha256 取 release 頁的 digest，換完要重跑生成驗證。**不要用 `pypi.nvidia.com/nvtorch_oot_nightly`**：同樣的檔只給 62 KB/s，torchaudio 也跟 torch 不同批
+- 只裝生成路徑用得到的套件：pyarrow、tiktoken、cryptography、funasr、modelscope 只有訓練／ASR／降噪才用（而且沒有 win_arm64 wheel）；wetext 只有 `normalize=True` 才用
+- 幾個非最新的固定版本，理由都寫在需求檔：librosa **0.9.2**（最後一版不需要 soxr，soxr 沒有任何 win_arm64 wheel）＋`setuptools<81`（給它 `pkg_resources`）、numba **0.68.0rc1**、scipy **1.16.3**（SAC 放行的版本）
+- **scikit-learn**：librosa 0.9.2 一 import 就要它，但 cp313 win_arm64 每一版都被 SAC 擋。`install.ps1` 先裝真的、試 import，被擋才換成 `shims/sklearn-unavailable`：import 得到，真的用到時丟清楚的 `ImportError`。生成路徑（`librosa.load`、`effects.trim`）不會用到。SAC 哪天放行了，重跑 `install.ps1` 就會自動換回真的
+- 驗證除了一般的 smoke test，還要 `torch.cuda.is_available()` 且 GPU 上 bf16 矩陣乘法跑得動
+- **原本的環境不會被弄壞**：x64 環境先改名成 `.venv-backup`，GPU 環境驗證通過才刪備份，失敗就改回原名再退回 x64；已經是 GPU 環境時，更新失敗（例如沒網路）但原環境還能用就留著。三條路徑都實測過（`-ArmRequirements` 指向一份會失敗的需求檔）
+- `uv venv` 一律 `--python-preference only-managed`：這台設了 `UV_PYTHON_PREFERENCE=system`，不指定的話 uv 會挑使用者自己裝的 Python，哪天移除或升級它環境就壞。不能用 `--managed-python`，跟那個環境變數衝突
 
 ## 使用者自然語言對照
 
@@ -195,11 +215,13 @@ media-voice-clone/
 ## 專案專屬規則
 
 - **`skills/` 不進版控**。`voice-clone` 的原始檔在 `skills/voice-clone/`，含本機絕對路徑與個人聲音名稱，而 repo 是公開的，所以已 gitignore。**跨電腦只靠 GDrive 同步**（跟 `handoff.md` 同一套做法）——換電腦前確認雲端同步跑完。`voices/`、`output/` 同樣不進版控
+- **不要在專案裡建 `.venv`**。專案在雲端硬碟同步範圍內，venv 寫死 base Python 的絕對路徑，換電腦或 uv 搬動 Python 就壞（2026-10-28 LT-YI-RS 的 `.venv` 指向已不存在的 `AppData\Roaming\uv\python\...`）。環境一律在本機共用位置，`install.ps1` 會順手刪掉專案裡的舊 `.venv`
 - **不要開 `optimize=True`**。本機沒有 triton／`cl.exe`，`torch.compile` 會被 `try/except` 靜默降級（只印 `Warning: torch.compile disabled - triton is not installed`），速度零改善卻多花 3.3 秒載入
 - **模型載入偶爾變 60～90 秒是正常的**：HuggingFace 快取在重新驗證（Windows 無 symlink），不是壞掉，等它跑完即可。正常約 9.7 秒
 - **全域技能不能用相對路徑**：venv 直譯器的相對路徑在非專案目錄會 `CommandNotFoundException`，一律用絕對路徑（兩平台的檔名不同，先偵測再組）
 - **沙箱會擋下 `Remove-Item -Recurse -Force`**（回報 `path '*' is blocked`），改用 `[System.IO.Directory]::Delete($p,$true)`
-- **Smart App Control 的限制目前只在 PC-YI-SL 驗證過**，其他電腦未實測；生成路徑不受影響
+- **Smart App Control 在 PC-YI-SL、LT-YI-RS 驗證過**：PC-YI-SL 生成路徑不受影響；LT-YI-RS 要靠 `sac-pins.txt`（見〈環境限制〉）
+- **從 Claude 桌面版跑的程式寫不到真正的 `%LOCALAPPDATA%`**：它是 MSIX 封裝，新資料夾會被虛擬化到 `Packages\Claude_*\LocalCache\Local\`，檔案總管、`start.bat`、其他 Agent 都看不到。要跨程式共用的東西放 `~\.local\share\` 之類的使用者資料夾
 - **所有檔案一律 UTF-8 無 BOM**（`.ps1` 也是）。舊的「`.ps1` 要存成 UTF-8 with BOM」規則前提是 PowerShell 5.1，已隨 pwsh 7 定案而廢止；`SKILL.md` 有 BOM 會讓 frontmatter 解析失敗、技能觸發不了。詳見 `agent-project-flow/platform.md`
 - repo 為**公開**，新增檔案前先確認不含個資
 

@@ -1,0 +1,33 @@
+# Windows on ARM＋NVIDIA GPU（RTX Spark）的原生 ARM64 環境，Python 3.13。install.ps1 用它裝，voxcpm 另外 --no-deps 裝。
+# 只列生成路徑用得到的：voxcpm 宣告的 pyarrow／tiktoken／cryptography／funasr／modelscope 只有訓練、ASR、降噪才用，
+# 而且沒有 win_arm64 wheel；wetext 只有 normalize=True 才用。2026-10-28 LT-YI-RS 實測。
+
+# NVIDIA 的 Windows on ARM nightly（https://github.com/NVIDIA/pytorch-windows-ci/releases），只有 cp313。
+# 固定實測過的這一批，torch 與 torchaudio 要同一天；換版本時兩行一起換，sha256 取自 release 頁的 digest。
+# 不用 pypi.nvidia.com/nvtorch_oot_nightly：同樣的檔只給 62 KB/s，torchaudio 也跟 torch 不同批。
+torch @ https://github.com/NVIDIA/pytorch-windows-ci/releases/download/woa-nightly-20261027-r40484592186/torch-2.16.0.dev20261027%2Bcu134-cp313-cp313-win_arm64.whl#sha256=8c781008d4c21cf2a3560534db4d7e618cc277040e337648d6dec6e6d6c1672d
+torchaudio @ https://github.com/NVIDIA/pytorch-windows-ci/releases/download/woa-nightly-20261027-r40484592186/torchaudio-2.11.0.dev20261027%2Bcu134-py3-none-win_arm64.whl#sha256=2c45c4b89b4b0cb928c36767580e9e92d5bc685147f2aae3a7f76476180efc06
+
+# librosa 0.9.2 是最後一版不需要 soxr 的（soxr 沒有任何 win_arm64 wheel），它要 pkg_resources，所以 setuptools<81
+librosa==0.9.2
+setuptools<81
+# Smart App Control 放行的版本：numba 正式版 0.68.0／0.68.1、scipy 1.17／1.18 的 win_arm64 都被擋
+numba==0.68.0rc1
+scipy==1.16.3
+
+transformers
+tokenizers
+safetensors
+huggingface-hub
+einops
+inflect
+pydantic
+tqdm
+simplejson
+sortedcontainers
+addict
+regex
+soundfile
+sounddevice
+resampy
+opencc-python-reimplemented

@@ -31,13 +31,13 @@
 Windows 雙擊 `install.bat`（或 `install.ps1`）；macOS 跑 `pwsh -File install.ps1`。腳本會自動完成：
 
 1. 檢查／安裝 uv 套件管理器
-2. 建立 Python 3.12 虛擬環境 `.venv`
+2. 在本機建立 Python 虛擬環境 `~/.local/share/media-voice-clone/.venv`（Windows 的 `~` 是使用者資料夾）。不建在專案裡，因為專案常放在雲端同步資料夾，venv 換電腦就壞。Windows on ARM＋NVIDIA 會建原生 ARM64＋CUDA 環境（Python 3.13），不行就改建 x64 CPU 環境
 3. 偵測加速裝置（CUDA／MPS／CPU）
 4. 安裝對應版本的 PyTorch + voxcpm
 
 ### 2. 錄音
 
-Windows 雙擊 `start.bat`；macOS 跑 `./.venv/bin/python record_ui.py --open`。
+Windows 雙擊 `start.bat`；macOS 跑 `~/.local/share/media-voice-clone/.venv/bin/python record_ui.py --open`。
 瀏覽器打開 → 取名 → 對著麥克風念稿 → 儲存。
 
 > `install.bat` 與 `start.bat` 是 Windows 專屬的雙擊啟動器，macOS 沒有對應檔案，照上面的指令直接跑即可。
@@ -56,18 +56,21 @@ Agent 會自動找到對應聲音、生成語音、回傳音檔。
 
 ## 命令列工具（替代方案，不需 GUI 時可用）
 
-> **兩個平台的直譯器路徑不同**，以下範例寫的是 Windows 形式：
-> - Windows：`.\.venv\Scripts\python.exe`
-> - macOS：`./.venv/bin/python`
+> 以下範例都在專案資料夾執行，並先把 `$py` 設成這台的直譯器（每開一個新終端機都要設一次）：
 >
-> 安裝腳本跑完會把這台該用的那一個印在「下一步」，照著複製即可。
+> ```powershell
+> $py = "$HOME\.local\share\media-voice-clone\.venv\Scripts\python.exe"   # Windows
+> $py = "$HOME/.local/share/media-voice-clone/.venv/bin/python"         # macOS
+> ```
+>
+> 安裝腳本跑完也會把這台的完整路徑印在「下一步」。
 
 ### 錄製參考音
 
 **方式 A：網頁介面**
 
 ```powershell
-.\.venv\Scripts\python.exe record_ui.py --open
+& $py record_ui.py --open
 ```
 
 瀏覽器開啟後，有錄音按鈕、逐字稿顯示、試聽，滿意再存檔。
@@ -75,7 +78,7 @@ Agent 會自動找到對應聲音、生成語音、回傳音檔。
 **方式 B：命令列**
 
 ```powershell
-.\.venv\Scripts\python.exe record.py --voice 我的聲音
+& $py record.py --voice 我的聲音
 ```
 
 螢幕會顯示一段文字，對著麥克風自然地朗讀，念完按 Enter 停止。
@@ -83,13 +86,13 @@ Agent 會自動找到對應聲音、生成語音、回傳音檔。
 ### 生成克隆語音
 
 ```powershell
-.\.venv\Scripts\python.exe clone.py "你好，這是我的克隆聲音。" --voice 我的聲音
+& $py clone.py "你好，這是我的克隆聲音。" --voice 我的聲音
 ```
 
 或從文字檔生成：
 
 ```powershell
-.\.venv\Scripts\python.exe clone.py --file my_script.txt
+& $py clone.py --file my_script.txt
 ```
 
 輸出檔案預設在 `output/cloned_voice.wav`。
@@ -99,9 +102,9 @@ Agent 會自動找到對應聲音、生成語音、回傳音檔。
 **同一句多生幾個挑一個**：VoxCPM2 每次生成都有隨機性，同一句換個 seed，聲調、停頓、有沒有嘶聲都不一樣。
 
 ```powershell
-.\.venv\Scripts\python.exe clone.py "這句話念了好幾次都怪怪的" --takes 4 -o output/line.wav
+& $py clone.py "這句話念了好幾次都怪怪的" --takes 4 -o output/line.wav
 #   → output/line_takes/line_s1.wav … line_s4.wav，以及串好的 output/line_takes/audition.wav
-.\.venv\Scripts\python.exe audition.py output/line_takes --pick s3 -o output/line.wav
+& $py audition.py output/line_takes --pick s3 -o output/line.wav
 ```
 
 `audition.wav` 用嗶聲隔開各候選，印出來的表有每支「從第幾秒開始」、響度與高頻比；高頻比異常的標「可能有嘶聲」（門檻沿用 media-short-film 的挑音規則），但最後還是以耳朵為準。只想看送進模型的文字（不載模型）：`clone.py "句子" --dry-run`。
@@ -109,7 +112,7 @@ Agent 會自動找到對應聲音、生成語音、回傳音檔。
 ### 生成多聲音對話
 
 ```powershell
-.\.venv\Scripts\python.exe dialogue.py
+& $py dialogue.py
 ```
 
 對話內容請直接編輯 `dialogue.py` 中的 `dialogue` 清單。每句會各自做後處理、調到同一個響度（−15 LUFS）再拼接，兩個人的聲音不會一大一小。
@@ -135,7 +138,7 @@ VoxCPM2 不支援注音標記，多音字、英文詞念錯只能改字。`clone
 一份都找不到就印一行提示、照原文念。改寫盡量用同音字或補字；新增條目後重生那句實際聽過。試表不必載入模型：
 
 ```powershell
-.\.venv\Scripts\python.exe tts_lexicon.py "奇數加奇數是偶數，十比十一少一。"
+& $py tts_lexicon.py "奇數加奇數是偶數，十比十一少一。"
 ```
 
 ## 目錄結構
@@ -168,12 +171,14 @@ media-voice-clone/
 | NVIDIA RTX 5060 Ti | cuda | cu128 wheel | **RTF ~1.2（實測）** |
 | NVIDIA (CUDA 12+) | cuda | cu128 wheel | RTF ~0.3（RTX 4090，未實測） |
 | 無獨顯 | cpu | cpu wheel | RTF ~8.0（未實測） |
-| Windows on ARM（RTX Spark、Snapdragon） | cpu | x64 Python 模擬＋cpu wheel | 比 x64 CPU 更慢（未實測） |
+| Windows on ARM＋NVIDIA（RTX Spark） | cuda | 原生 ARM64＋NVIDIA 預覽版 cu134 wheel（Python 3.13） | **RTF ~1.7（實測）** |
+| Windows on ARM（無 NVIDIA，或上面失敗時的退路） | cpu | x64 Python 模擬＋cpu wheel | 極慢：RTF 約 42（5.9 秒語音要 4 分鐘，實測），只適合短句 |
 
 > 本專案只支援 NVIDIA CUDA 與 CPU。Intel Arc（XPU）支援已於 2026-08-08 移除。
 >
-> Windows on ARM 即使有 NVIDIA GPU 也只能跑 CPU：`torchaudio`、`pyarrow`、`tiktoken` 等相依沒有原生 ARM64 版，
-> `install.ps1` 會自動改建 x64 環境靠 Prism 模擬執行，而模擬中的程式用不到 GPU。
+> Windows on ARM＋NVIDIA GPU：`install.ps1` 建原生 ARM64 環境，裝 NVIDIA 的 Windows on ARM 預覽版 PyTorch
+> （[NVIDIA/pytorch-windows-ci](https://github.com/NVIDIA/pytorch-windows-ci/releases)，固定在 `requirements-win-arm64.txt` 的那一版），
+> 只裝生成用得到的套件。失敗會自動退回 x64 CPU 環境（Prism 模擬，用不到 GPU），原本的環境會先保留、失敗時還原。
 
 > RTF = 生成 N 秒語音所需的時間倍率，越低越快。
 

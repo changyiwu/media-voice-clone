@@ -1,0 +1,3 @@
+from sklearn._unavailable import make_getattr
+
+__getattr__ = make_getattr('sklearn.decomposition')

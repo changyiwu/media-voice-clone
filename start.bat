@@ -4,7 +4,9 @@ title VoxCPM2 Voice Cloner - 啟動中...
 cd /d "%~dp0"
 
 :: ========== 檢查是否已安裝 ==========
-if not exist ".venv\Scripts\python.exe" (
+:: 環境在本機、不在專案裡（見 install.ps1）
+set "PY=%USERPROFILE%\.local\share\media-voice-clone\.venv\Scripts\python.exe"
+if not exist "%PY%" (
     echo ========================================
     echo   尚未安裝，請先雙擊 install.bat
     echo ========================================
@@ -36,7 +38,7 @@ for /f "tokens=5" %%a in ('netstat -ano ^| findstr :7860') do (
 
 :: ========== 啟動伺服器 ==========
 echo 正在啟動 VoxCPM2 Voice Cloner...
-start "VoxCPM2 Server" ".venv\Scripts\python.exe" record_ui.py
+start "VoxCPM2 Server" "%PY%" record_ui.py
 
 :: ========== 等待伺服器啟動 ==========
 echo 等待伺服器啟動中...

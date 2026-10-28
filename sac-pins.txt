@@ -1,0 +1,9 @@
+# Smart App Control 放行的版本。install.ps1 先裝最新版，驗證被 Smart App Control 擋下才改用這份重裝。
+# SAC 依檔案信譽放行，太新的 wheel 下載量不夠就會被擋；版本越舊越容易過，信譽養起來後可以往上調。
+# 2026-10-28 LT-YI-RS（x64 Python、CPU wheel）實測：
+#   torch 2.14.1 擋 torch_python.dll；torch 2.10.0 的 torchaudio 擋 _torchaudio；2.9.1 通過
+#   numba 0.68.1 擋 _dynfunc（resampy 要用）；0.62.1 通過
+torch==2.9.1
+torchaudio==2.9.1
+numba==0.62.1
+llvmlite==0.45.1
