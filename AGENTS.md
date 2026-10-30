@@ -82,7 +82,7 @@ media-voice-clone/
 
 > Agent 若看到上述 ImportError，**不要重裝同一版套件**，那不會有幫助；改走不依賴該套件的路徑，或換成 SAC 已放行的舊版。
 
-**LT-YI-RS（Windows on ARM）也開著 SAC**，而且連生成路徑都會被擋：太新的 wheel 信譽不夠（torch 2.14.1 的 `torch_python.dll`、torchaudio 2.10 的 `_torchaudio`、numba 0.68.1 的 `_dynfunc`）。`install.ps1` 的處理：先裝最新版，驗證碰到 `WinError 4551` 就改用 `sac-pins.txt` 的版本重裝。新的套件被擋時，在 `sac-pins.txt` 加一行已放行的版本（越舊越容易過），不要整包降版。
+**LT-YI-RS（Windows on ARM）的 SAC 已於 2026-10-30 關閉**（`VerifiedAndReputablePolicyState = 0`），下面的擋法只在開著 SAC 的 Windows on ARM 才會遇到。開著時連生成路徑都會被擋：太新的 wheel 信譽不夠（torch 2.14.1 的 `torch_python.dll`、torchaudio 2.10 的 `_torchaudio`、numba 0.68.1 的 `_dynfunc`）。`install.ps1` 的處理：先裝最新版，驗證碰到 `WinError 4551` 就改用 `sac-pins.txt` 的版本重裝。新的套件被擋時，在 `sac-pins.txt` 加一行已放行的版本（越舊越容易過），不要整包降版。
 
 > 另一個相關坑：本機只有 Windows PowerShell 5.1（無 pwsh），會用 big5 讀取無 BOM 的 `.ps1`，導致中文腳本 parse 失敗。專案內的 `.ps1` 已加上 UTF-8 BOM，新增 `.ps1` 時請比照辦理。
 
@@ -173,8 +173,9 @@ media-voice-clone/
 - **原生 ARM64、Python 3.13**（NVIDIA 只出 cp313）。套件全在 `requirements-win-arm64.txt`，voxcpm 另外 `--no-deps` 裝
 - **torch／torchaudio 固定在 [NVIDIA/pytorch-windows-ci releases](https://github.com/NVIDIA/pytorch-windows-ci/releases) 的一批 `woa-nightly-*`**（現為 `2.16.0.dev20261027+cu134`），需求檔裡是直接 URL＋`#sha256=`，由 uv 驗證。nightly 每天一批、torch 與 torchaudio 同批建置；換版本時兩行一起換、sha256 取 release 頁的 digest，換完要重跑生成驗證。**不要用 `pypi.nvidia.com/nvtorch_oot_nightly`**：同樣的檔只給 62 KB/s，torchaudio 也跟 torch 不同批
 - 只裝生成路徑用得到的套件：pyarrow、tiktoken、cryptography、funasr、modelscope 只有訓練／ASR／降噪才用（而且沒有 win_arm64 wheel）；wetext 只有 `normalize=True` 才用
-- 幾個非最新的固定版本，理由都寫在需求檔：librosa **0.9.2**（最後一版不需要 soxr，soxr 沒有任何 win_arm64 wheel）＋`setuptools<81`（給它 `pkg_resources`）、numba **0.68.0rc1**、scipy **1.16.3**（SAC 放行的版本）
-- **scikit-learn**：librosa 0.9.2 一 import 就要它，但 cp313 win_arm64 每一版都被 SAC 擋。`install.ps1` 先裝真的、試 import，被擋才換成 `shims/sklearn-unavailable`：import 得到，真的用到時丟清楚的 `ImportError`。生成路徑（`librosa.load`、`effects.trim`）不會用到。SAC 哪天放行了，重跑 `install.ps1` 就會自動換回真的
+- 幾個非最新的固定版本，理由都寫在需求檔：librosa **0.9.2**（最後一版不需要 soxr，soxr 沒有任何 win_arm64 wheel）＋`setuptools<81`（給它 `pkg_resources`）。numba **0.68.1**、scipy **1.18.1** 是關 SAC 後實測的版本；開著 SAC 的機器要改回放行的 numba **0.68.0rc1**、scipy **1.16.3**
+- **scikit-learn**：librosa 0.9.2 一 import 就要它，開著 SAC 時 cp313 win_arm64 每一版都被擋；LT-YI-RS 關 SAC 後已是真的 1.9.1。`install.ps1` 先裝真的、試 import，被擋才換成 `shims/sklearn-unavailable`：import 得到，真的用到時丟清楚的 `ImportError`。生成路徑（`librosa.load`、`effects.trim`）不會用到。SAC 放行後重跑 `install.ps1` 會自動換回真的
+- **關 SAC 也裝不到的**：soxr、pyarrow、tiktoken、funasr 沒有 cp313 win_arm64 wheel（2026-10-30 重查）；datasets 因為相依 pyarrow 也裝不到。它們都不在生成路徑上
 - 驗證除了一般的 smoke test，還要 `torch.cuda.is_available()` 且 GPU 上 bf16 矩陣乘法跑得動
 - **原本的環境不會被弄壞**：x64 環境先改名成 `.venv-backup`，GPU 環境驗證通過才刪備份，失敗就改回原名再退回 x64；已經是 GPU 環境時，更新失敗（例如沒網路）但原環境還能用就留著。三條路徑都實測過（`-ArmRequirements` 指向一份會失敗的需求檔）
 - `uv venv` 一律 `--python-preference only-managed`：這台設了 `UV_PYTHON_PREFERENCE=system`，不指定的話 uv 會挑使用者自己裝的 Python，哪天移除或升級它環境就壞。不能用 `--managed-python`，跟那個環境變數衝突
@@ -216,11 +217,12 @@ media-voice-clone/
 
 - **`skills/` 不進版控**。`voice-clone` 的原始檔在 `skills/voice-clone/`，含本機絕對路徑與個人聲音名稱，而 repo 是公開的，所以已 gitignore。**跨電腦只靠 GDrive 同步**（跟 `handoff.md` 同一套做法）——換電腦前確認雲端同步跑完。`voices/`、`output/` 同樣不進版控
 - **不要在專案裡建 `.venv`**。專案在雲端硬碟同步範圍內，venv 寫死 base Python 的絕對路徑，換電腦或 uv 搬動 Python 就壞（2026-10-28 LT-YI-RS 的 `.venv` 指向已不存在的 `AppData\Roaming\uv\python\...`）。環境一律在本機共用位置，`install.ps1` 會順手刪掉專案裡的舊 `.venv`
+- **改 `requirements-win-arm64.txt` 的版本前，先用另一個 venv 驗證生成**：`install.ps1` 就地更新後若驗證失敗，會刪掉 GPU 環境再退回 x64，沒有備份
 - **不要開 `optimize=True`**。本機沒有 triton／`cl.exe`，`torch.compile` 會被 `try/except` 靜默降級（只印 `Warning: torch.compile disabled - triton is not installed`），速度零改善卻多花 3.3 秒載入
 - **模型載入偶爾變 60～90 秒是正常的**：HuggingFace 快取在重新驗證（Windows 無 symlink），不是壞掉，等它跑完即可。正常約 9.7 秒
 - **全域技能不能用相對路徑**：venv 直譯器的相對路徑在非專案目錄會 `CommandNotFoundException`，一律用絕對路徑（兩平台的檔名不同，先偵測再組）
 - **沙箱會擋下 `Remove-Item -Recurse -Force`**（回報 `path '*' is blocked`），改用 `[System.IO.Directory]::Delete($p,$true)`
-- **Smart App Control 在 PC-YI-SL、LT-YI-RS 驗證過**：PC-YI-SL 生成路徑不受影響；LT-YI-RS 要靠 `sac-pins.txt`（見〈環境限制〉）
+- **Smart App Control 在 PC-YI-SL、LT-YI-RS 驗證過**：PC-YI-SL 生成路徑不受影響；LT-YI-RS 開著時要靠 `sac-pins.txt`，現已關閉（見〈環境限制〉）
 - **從 Claude 桌面版跑的程式寫不到真正的 `%LOCALAPPDATA%`**：它是 MSIX 封裝，新資料夾會被虛擬化到 `Packages\Claude_*\LocalCache\Local\`，檔案總管、`start.bat`、其他 Agent 都看不到。要跨程式共用的東西放 `~\.local\share\` 之類的使用者資料夾
 - **所有檔案一律 UTF-8 無 BOM**（`.ps1` 也是）。舊的「`.ps1` 要存成 UTF-8 with BOM」規則前提是 PowerShell 5.1，已隨 pwsh 7 定案而廢止；`SKILL.md` 有 BOM 會讓 frontmatter 解析失敗、技能觸發不了。詳見 `agent-project-flow/platform.md`
 - repo 為**公開**，新增檔案前先確認不含個資

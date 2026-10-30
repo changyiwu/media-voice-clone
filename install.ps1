@@ -213,6 +213,8 @@ function Install-ArmGpuEnv {
 
     # torch wheel 約 1.8 GB，預設 30 秒逾時不夠
     $env:UV_HTTP_TIMEOUT = '600'
+    # 空殼要最先移除：librosa 相依 scikit-learn，下面就會裝進來，兩者共用 sklearn/ 資料夾，之後才移除空殼會刪掉真的 __init__.py
+    uv pip uninstall --python $venvPython sklearn-unavailable 2>$null | Out-Null
     Write-Host '  安裝 NVIDIA 預覽版 PyTorch 與生成用套件（第一次要下載約 1.9 GB）...' -ForegroundColor Yellow
     uv pip install --python $venvPython --requirements $ArmRequirements
     if ($LASTEXITCODE -ne 0) { return "套件安裝失敗（uv exit code: $LASTEXITCODE）" }
@@ -223,7 +225,6 @@ function Install-ArmGpuEnv {
     # librosa 0.9.2 一 import 就要 sklearn。先裝真的；被 Smart App Control 擋（2026-10-28 cp313 每一版都被擋）
     # 才換成 shims/sklearn-unavailable：import 得到、真的用到才報清楚的錯
     $shim = Join-Path $PSScriptRoot 'shims' 'sklearn-unavailable'
-    uv pip uninstall --python $venvPython sklearn-unavailable 2>$null | Out-Null
     uv pip install --python $venvPython scikit-learn
     $sk = if ($LASTEXITCODE -eq 0) {
         & $venvPython -c 'import sklearn.decomposition, sklearn.cluster, sklearn.feature_extraction, sklearn.neighbors' 2>&1 | Out-String
