@@ -240,3 +240,4 @@ media-voice-clone/
 
 - 執行 `record_ui.py` 或任何伺服器時用背景執行，用完記得停掉並確認 port 已釋放。
 - 生成語音後用 SendUserFile 把音檔交給使用者試聽，不要只回報路徑。
+- 在 Bash（Git Bash）跑 `clone.py`／`dialogue.py` 要先設 `PYTHONIOENCODING=utf-8`，否則印出簡體字時被 cp950 編碼擋下而中斷。
