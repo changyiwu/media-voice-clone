@@ -168,15 +168,16 @@ media-voice-clone/
 
 ### Windows on ARM＋RTX Spark 的 GPU 環境
 
-2026-10-28 LT-YI-RS 實測：**RTF 1.7**（暖機後；第一句 2.9），比 x64 CPU 環境（RTF ~45）快約 27 倍，接近 RTX 5060 Ti。`install.ps1` 的做法：
+2026-10-28 LT-YI-RS 實測：**RTF 1.7**（暖機後；第一句 2.9；2026-11-09 換 20261107 nightly 前後同一句各三個候選：舊 1.9／1.5／1.5、新 1.9／1.6／1.5，沒有差別），比 x64 CPU 環境（RTF ~45）快約 27 倍，接近 RTX 5060 Ti。`install.ps1` 的做法：
 
 - **原生 ARM64、Python 3.13**（NVIDIA 只出 cp313）。套件全在 `requirements-win-arm64.txt`，voxcpm 另外 `--no-deps` 裝
-- **torch／torchaudio 固定在 [NVIDIA/pytorch-windows-ci releases](https://github.com/NVIDIA/pytorch-windows-ci/releases) 的一批 `woa-nightly-*`**（現為 `2.16.0.dev20261027+cu134`），需求檔裡是直接 URL＋`#sha256=`，由 uv 驗證。nightly 每天一批、torch 與 torchaudio 同批建置；換版本時兩行一起換、sha256 取 release 頁的 digest，換完要重跑生成驗證。**不要用 `pypi.nvidia.com/nvtorch_oot_nightly`**：同樣的檔只給 62 KB/s，torchaudio 也跟 torch 不同批
+- **torch／torchaudio 固定在 [NVIDIA/pytorch-windows-ci releases](https://github.com/NVIDIA/pytorch-windows-ci/releases) 的一批 `woa-nightly-*`**（現為 `2.16.0.dev20261107+cu134`），需求檔裡是直接 URL＋`#sha256=`，由 uv 驗證。nightly 每天一批、torch 與 torchaudio 同批建置；換版本時兩行一起換、sha256 取 release 頁的 digest，換完要重跑生成驗證。**不要用 `pypi.nvidia.com/nvtorch_oot_nightly`**：同樣的檔只給 62 KB/s，torchaudio 也跟 torch 不同批
 - 只裝生成路徑用得到的套件：pyarrow、tiktoken、cryptography、funasr、modelscope 只有訓練／ASR／降噪才用（而且沒有 win_arm64 wheel）；wetext 只有 `normalize=True` 才用
 - 幾個非最新的固定版本，理由都寫在需求檔：librosa **0.9.2**（最後一版不需要 soxr，soxr 沒有任何 win_arm64 wheel）＋`setuptools<81`（給它 `pkg_resources`）。numba **0.68.1**、scipy **1.18.1** 是關 SAC 後實測的版本；開著 SAC 的機器要改回放行的 numba **0.68.0rc1**、scipy **1.16.3**
 - **scikit-learn**：librosa 0.9.2 一 import 就要它，開著 SAC 時 cp313 win_arm64 每一版都被擋；LT-YI-RS 關 SAC 後已是真的 1.9.1。`install.ps1` 先裝真的、試 import，被擋才換成 `shims/sklearn-unavailable`：import 得到，真的用到時丟清楚的 `ImportError`。生成路徑（`librosa.load`、`effects.trim`）不會用到。SAC 放行後重跑 `install.ps1` 會自動換回真的
 - **關 SAC 也裝不到的**：soxr、pyarrow、tiktoken、funasr 沒有 cp313 win_arm64 wheel（2026-10-30 重查）；datasets 因為相依 pyarrow 也裝不到。它們都不在生成路徑上
-- 驗證除了一般的 smoke test，還要 `torch.cuda.is_available()` 且 GPU 上 bf16 矩陣乘法跑得動
+- **venv 裡有 `torch-lib-path.pth`**（`install.ps1` 寫入）：每次啟動把 `torch\lib` 放進 PATH。2026-11-07 起的 nightly 不再預先載入 `torch\lib` 的 DLL，cuDNN 用到才去找 `cudnn_graph64_9.dll` 等子程式庫、找不到就印 `Cannot load symbol cudnnGetVersion` 直接退出（不丟例外）。只用 `uv pip install` 換 torch 時這個檔不會消失；新建環境一定要經 `install.ps1`
+- 驗證除了一般的 smoke test，還要 `torch.cuda.is_available()`、GPU 上 bf16 矩陣乘法與 cuDNN 卷積都跑得動
 - **原本的環境不會被弄壞**：x64 環境先改名成 `.venv-backup`，GPU 環境驗證通過才刪備份，失敗就改回原名再退回 x64；已經是 GPU 環境時，更新失敗（例如沒網路）但原環境還能用就留著。三條路徑都實測過（`-ArmRequirements` 指向一份會失敗的需求檔）
 - `uv venv` 一律 `--python-preference only-managed`：這台設了 `UV_PYTHON_PREFERENCE=system`，不指定的話 uv 會挑使用者自己裝的 Python，哪天移除或升級它環境就壞。不能用 `--managed-python`，跟那個環境變數衝突
 

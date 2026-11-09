@@ -55,6 +55,8 @@ $gpuSmokeTest = $smokeTest + @'
 assert torch.cuda.is_available(), 'torch.cuda.is_available() is False'
 a = torch.randn(256, 256, device='cuda', dtype=torch.bfloat16)
 (a @ a).float().sum().item()
+# cuDNN 另外驗：它的子程式庫是用到才載入，矩陣乘法測不出來（2026-11-07 nightly 曾在這裡直接退出）
+torch.nn.Conv1d(1, 4, 3).cuda()(torch.randn(1, 1, 64, device='cuda')).sum().item()
 '@
 
 Write-Host ''
@@ -221,6 +223,12 @@ function Install-ArmGpuEnv {
     # voxcpm 宣告的相依大多只有訓練／ASR 才用、又沒有 win_arm64 wheel，所以不裝它的相依
     uv pip install --python $venvPython voxcpm --no-deps
     if ($LASTEXITCODE -ne 0) { return "voxcpm 安裝失敗（uv exit code: $LASTEXITCODE）" }
+
+    # 2026-11-07 起的 nightly 不再預先載入 torch\lib 的所有 DLL，cuDNN 自己找子程式庫（cudnn_graph64_9.dll 等）
+    # 時找不到，一用到卷積就印「Cannot load symbol cudnnGetVersion」並退出。用 .pth 在每次啟動時把 torch\lib 放進 PATH
+    $purelib = (& $venvPython -c "import sysconfig; print(sysconfig.get_paths()['purelib'])").Trim()
+    $pth = "import os, sysconfig; p = os.path.join(sysconfig.get_paths()['purelib'], 'torch', 'lib'); os.path.isdir(p) and os.environ.__setitem__('PATH', p + os.pathsep + os.environ.get('PATH', ''))"
+    Set-Content -LiteralPath (Join-Path $purelib 'torch-lib-path.pth') -Value $pth -Encoding ascii
 
     # librosa 0.9.2 一 import 就要 sklearn。先裝真的；被 Smart App Control 擋（2026-10-28 cp313 每一版都被擋）
     # 才換成 shims/sklearn-unavailable：import 得到、真的用到才報清楚的錯
