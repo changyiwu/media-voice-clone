@@ -129,10 +129,10 @@ media-voice-clone/
 
 `clone.py`、`dialogue.py` 送進模型前會先套 `tts-lexicon.md`（`| 原文 | 改寫 | 說明 |`），把念錯的多音字、英文詞改字（奇數→基數、十一少一→十一少了一、GPT-4→GPT four），並印出「改寫後」的文字。參考音逐字稿（`prompt.txt`）不替換。
 
-- **表在本專案根目錄**（`tts-lexicon.md`）。這份表有**四份、內容逐位元組相同**（另外三份在 media-video-specs、media-short-film、agent-speak/speak/；四個 repo 都公開，各自單獨下載就要能用）。`tts_lexicon.py` 以自己的位置為起點（不靠 cwd）往上找另外三份，有就一起讀，本專案這份優先；設了 `TTS_LEXICON` 就改讀它指的表來取代本專案這份
+- **表在本專案根目錄**（`tts-lexicon.md`）。這份表有**五份、內容逐位元組相同**（另外四份在 media-video-specs、media-short-film、agent-speak/speak/、media-math-rap；五個 repo 都公開，各自單獨下載就要能用）。`tts_lexicon.py` 以自己的位置為起點（不靠 cwd）往上找另外四份，有就一起讀，本專案這份優先；設了 `TTS_LEXICON` 就改讀它指的表來取代本專案這份
 - **覆蓋**：輸出資料夾往上每一層的同名 `tts-lexicon.md`，近的優先（只對某批輸出有效的條目放這裡）
 - 找不到任何表只印一行提示、照原文念，不報錯
-- **使用者說某個詞念錯了** → 條目**四份一起加**（說明欄寫正確讀音、出處、是否已人耳確認），用 `python ../media-short-film/tools/tts_lexicon.py --check`／`--sync` 檢查與合併。加完重生那句給使用者聽
+- **使用者說某個詞念錯了** → 條目**五份一起加**（說明欄寫正確讀音、出處、是否已人耳確認），用 `python ../media-short-film/tools/tts_lexicon.py --check`／`--sync` 檢查與合併。加完重生那句給使用者聽
 - 試表不必載模型：`& $py tts_lexicon.py "句子"`
 - 本專案是獨立公開 repo，**不要 import 別的 repo 的程式**；解析規則改了四個 repo 各自改
 
@@ -188,7 +188,7 @@ media-voice-clone/
 | 「用OOO的聲音念出／說出／講出XXX」 | 走 `voice-clone` 全域技能（見下節）；沒裝技能就直接 `clone.py "XXX" --voice OOO` |
 | 「讓A和B對話」 | 編輯 `dialogue.py` 對話清單 → 執行 |
 | 「有哪些聲音」 | `ls voices\` |
-| 「XX 念錯了」「XX 要念成 OO」 | 四個 repo 的讀音替換表一起加一列 → 重生那句（見〈tts_lexicon.py〉） |
+| 「XX 念錯了」「XX 要念成 OO」 | 五個 repo 的讀音替換表一起加一列 → 重生那句（見〈tts_lexicon.py〉） |
 | 「念得怪怪的」「換一個版本」「聲調不對但字沒錯」 | `clone.py ... --takes 4` → 把 `audition.wav` 交給使用者聽 → `audition.py --pick` |
 | 「我要錄聲音」 | 引導使用者雙擊 `start.bat`，或開啟 http://127.0.0.1:7860 |
 

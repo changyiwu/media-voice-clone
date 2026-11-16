@@ -128,11 +128,11 @@ VoxCPM2 不支援注音標記，多音字、英文詞念錯只能改字。`clone
 | 十一少一 | 十一少了一 | 少讀 shǎo |
 | GPT-4 | GPT four | 英文型號的數字用英文念 |
 
-表放在本專案根目錄（`tts-lexicon.md`），單獨下載本 repo 就能用。同一份表在 [media-video-specs](https://github.com/changyiwu/media-video-specs)、[media-short-film](https://github.com/changyiwu/media-short-film)、[agent-speak](https://github.com/changyiwu/agent-speak) 也各有一份、內容相同。
+表放在本專案根目錄（`tts-lexicon.md`），單獨下載本 repo 就能用。同一份表在 [media-video-specs](https://github.com/changyiwu/media-video-specs)、[media-short-film](https://github.com/changyiwu/media-short-film)、[agent-speak](https://github.com/changyiwu/agent-speak)、[media-math-rap](https://github.com/changyiwu/media-math-rap) 也各有一份、內容相同。
 
 找表的順序（近的覆蓋遠的，同一個原文以近的為準）：
 
-1. 同層另外三份（四個 repo 放在同一個資料夾底下時，有就一起讀）
+1. 同層另外四份（五個 repo 放在同一個資料夾底下時，有就一起讀）
 2. 本專案根目錄的 `tts-lexicon.md`（設了環境變數 `TTS_LEXICON` 就改讀它指的表）
 3. 輸出資料夾往上每一層的 `tts-lexicon.md`
 
@@ -152,7 +152,7 @@ media-voice-clone/
 ├── clone.py                  # Agent 工具：用聲音生成語音
 ├── dialogue.py               # Agent 工具：多聲音對話
 ├── tts_lexicon.py            # 讀音替換表載入（clone.py／dialogue.py 共用）
-├── tts-lexicon.md            # 讀音替換表（四個 TTS repo 各一份、內容相同）
+├── tts-lexicon.md            # 讀音替換表（五個 repo 各一份、內容相同）
 ├── voice_prep.py             # 生成前後處理：繁轉簡、去靜音、濾波、−15 LUFS
 ├── audition.py               # 候選串成試聽檔、挑一支（搭配 clone.py --takes）
 ├── record.py                 # 命令列錄音（備案）
