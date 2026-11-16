@@ -20,7 +20,9 @@
 
 param(
     # 測試退回路徑用：指向一份會失敗的需求檔（例如 sha256 故意寫錯），確認原本的環境會被還原
-    [string]$ArmRequirements = (Join-Path $PSScriptRoot 'requirements-win-arm64.txt')
+    [string]$ArmRequirements = (Join-Path $PSScriptRoot 'requirements-win-arm64.txt'),
+    # 這台已有 media-short-film 的 %AI_ROOT%\Voice\venv 時預設直接沿用、不另建；加這個參數就照樣建自己的
+    [switch]$OwnEnv
 )
 
 $ErrorActionPreference = 'Stop'
@@ -64,6 +66,31 @@ Write-Host '============================================' -ForegroundColor Cyan
 Write-Host '  VoxCPM2 Voice Cloner - Auto Installer' -ForegroundColor Cyan
 Write-Host '============================================' -ForegroundColor Cyan
 Write-Host ''
+
+# --- Step 0: 優先沿用 media-short-film 的環境 ---
+# %AI_ROOT%\Voice\venv（AI_ROOT 預設 C:\AI）已裝好 torch＋voxcpm，模型也在旁邊，不必再建一份。
+# 這份環境屬於 media-short-film，這裡只檢查、不往裡面裝東西（缺 sounddevice 只影響命令列錄音 record.py）
+$aiRoot = if ($env:AI_ROOT) { $env:AI_ROOT } elseif ($IsWindows) { 'C:\AI' } else { $null }
+if ($aiRoot -and -not $OwnEnv) {
+    $sharedVenv = Join-Path $aiRoot 'Voice' 'venv'
+    $sharedPython = if ($IsWindows) { Join-Path $sharedVenv 'Scripts' 'python.exe' } else { Join-Path $sharedVenv 'bin' 'python' }
+    if (Test-Path -LiteralPath $sharedPython) {
+        Write-Host "找到共用環境：$sharedVenv，檢查能不能用..." -ForegroundColor Yellow
+        $check = 'import torch, soundfile, opencc, librosa, numpy; from scipy.signal import butter, sosfiltfilt; from voxcpm import VoxCPM; print("cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu"))'
+        $dev = & $sharedPython -W ignore -c $check 2>$null | Select-Object -Last 1
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "  可以用（裝置：$dev），不另建環境。" -ForegroundColor Green
+            Write-Host "  要建自己的環境：pwsh -File install.ps1 -OwnEnv"
+            Write-Host ''
+            Write-Host '下一步：' -ForegroundColor Cyan
+            Write-Host "  1. 錄製參考音：& `"$sharedPython`" record_ui.py --open"
+            Write-Host "  2. 生成語音：& `"$sharedPython`" clone.py `"你想說的文字`""
+            exit 0
+        }
+        Write-Host '  共用環境跑不起來，改建本專案自己的環境。' -ForegroundColor Yellow
+    }
+}
+
 Write-Host "環境位置：$venvDir"
 Write-Host ''
 

@@ -31,7 +31,7 @@
 Windows 雙擊 `install.bat`（或 `install.ps1`）；macOS 跑 `pwsh -File install.ps1`。腳本會自動完成：
 
 1. 檢查／安裝 uv 套件管理器
-2. 在本機建立 Python 虛擬環境 `~/.local/share/media-voice-clone/.venv`（Windows 的 `~` 是使用者資料夾）。不建在專案裡，因為專案常放在雲端同步資料夾，venv 換電腦就壞。Windows on ARM＋NVIDIA 會建原生 ARM64＋CUDA 環境（Python 3.13），不行就改建 x64 CPU 環境
+2. 這台若已有 media-short-film 裝好的 `C:\AI\Voice\venv`（或 `%AI_ROOT%\Voice\venv`）且能跑，就直接沿用、不另建（加 `-OwnEnv` 強制另建）；否則在本機建立 Python 虛擬環境 `~/.local/share/media-voice-clone/.venv`（Windows 的 `~` 是使用者資料夾）。不建在專案裡，因為專案常放在雲端同步資料夾，venv 換電腦就壞。Windows on ARM＋NVIDIA 會建原生 ARM64＋CUDA 環境（Python 3.13），不行就改建 x64 CPU 環境
 3. 偵測加速裝置（CUDA／MPS／CPU）
 4. 安裝對應版本的 PyTorch + voxcpm
 
@@ -59,7 +59,8 @@ Agent 會自動找到對應聲音、生成語音、回傳音檔。
 > 以下範例都在專案資料夾執行，並先把 `$py` 設成這台的直譯器（每開一個新終端機都要設一次）：
 >
 > ```powershell
-> $py = "$HOME\.local\share\media-voice-clone\.venv\Scripts\python.exe"   # Windows
+> $py = "C:\AI\Voice\venv\Scripts\python.exe"                            # Windows，沿用 media-short-film 環境時
+> $py = "$HOME\.local\share\media-voice-clone\.venv\Scripts\python.exe"   # Windows，本專案自己的環境
 > $py = "$HOME/.local/share/media-voice-clone/.venv/bin/python"         # macOS
 > ```
 >

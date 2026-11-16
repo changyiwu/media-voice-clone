@@ -4,8 +4,11 @@ title VoxCPM2 Voice Cloner - 啟動中...
 cd /d "%~dp0"
 
 :: ========== 檢查是否已安裝 ==========
-:: 環境在本機、不在專案裡（見 install.ps1）
-set "PY=%USERPROFILE%\.local\share\media-voice-clone\.venv\Scripts\python.exe"
+:: 環境在本機、不在專案裡（見 install.ps1）：優先用 media-short-film 的 %AI_ROOT%\Voice\venv，
+:: 沒有才用本專案自己的 ~\.local\share\media-voice-clone\.venv
+if not defined AI_ROOT set "AI_ROOT=C:\AI"
+set "PY=%AI_ROOT%\Voice\venv\Scripts\python.exe"
+if not exist "%PY%" set "PY=%USERPROFILE%\.local\share\media-voice-clone\.venv\Scripts\python.exe"
 if not exist "%PY%" (
     echo ========================================
     echo   尚未安裝，請先雙擊 install.bat
