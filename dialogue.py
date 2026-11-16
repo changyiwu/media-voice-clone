@@ -59,9 +59,10 @@ def load_voice(voice_name):
 def main():
     device = detect_device()
     print(f"裝置: {device}")
-    print("載入 VoxCPM2 模型...")
+    src = vp.model_source()
+    print(f"載入 VoxCPM2 模型（{src}）...")
     t0 = time.time()
-    model = VoxCPM.from_pretrained("openbmb/VoxCPM2", load_denoiser=False, device=device, optimize=False)
+    model = VoxCPM.from_pretrained(src, load_denoiser=False, device=device, optimize=False)
     print(f"模型載入完成，耗時 {time.time()-t0:.1f}s\n")
 
     # 預載兩個聲音的參考資料

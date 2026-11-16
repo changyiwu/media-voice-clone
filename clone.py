@@ -111,10 +111,14 @@ def main():
 
     print(f'聲音: {args.voice}')
     print(f'裝置: {device}')
-    print('載入 VoxCPM2 模型（首次會下載權重，約 4.7GB）...')
+    src = vp.model_source()
+    if src == vp.HF_MODEL_ID:
+        print('載入 VoxCPM2 模型（首次會下載權重，約 4.7GB）...')
+    else:
+        print(f'載入 VoxCPM2 模型（本機：{src}）...')
     t0 = time.time()
     model = VoxCPM.from_pretrained(
-        'openbmb/VoxCPM2',
+        src,
         load_denoiser=False,
         device=device,
         optimize=False,

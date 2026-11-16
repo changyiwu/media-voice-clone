@@ -15,12 +15,36 @@ voice_prep.py - VoxCPM2 生成前後的處理，clone.py、dialogue.py、auditio
 做法改編自 media-short-film 的 voxcpm_batch.py（繁轉簡）、voice_pick.py（去靜音、高頻比）與
 make_film.py cut（每句濾波、每句同響度再混）。需要：numpy、scipy、librosa（voxcpm 已帶）；
 繁轉簡選用 opencc-python-reimplemented（install.ps1 會裝）。
+模型位置：
+  model_source()  VoxCPM2 權重的位置，給 VoxCPM.from_pretrained 用（見函式說明）
 """
+import os
+
 import numpy as np
 
+HF_MODEL_ID = 'openbmb/VoxCPM2'
 TARGET_LUFS = -15.0
 PEAK_MAX_DB = -1.0
 _t2s = None
+
+
+def model_source():
+    """VoxCPM2 權重的位置：本機已經有一份就直接用，不再讓 HuggingFace 快取另存 4.7 GB。
+
+    依序找：VOXCPM_MODEL 環境變數指的資料夾 → %AI_ROOT%\\Voice\\models\\VoxCPM2
+    （media-short-film 裝好的語音模型，AI_ROOT 預設 C:\\AI）→ 都沒有就回傳 HuggingFace 名稱、照舊下載到快取。
+    資料夾要有 config.json 跟 model.safetensors 才算數，缺檔的半成品不用。
+    """
+    cands = []
+    if os.environ.get('VOXCPM_MODEL'):
+        cands.append(os.environ['VOXCPM_MODEL'])
+    ai_root = os.environ.get('AI_ROOT') or (r'C:\AI' if os.name == 'nt' else None)
+    if ai_root:
+        cands.append(os.path.join(ai_root, 'Voice', 'models', 'VoxCPM2'))
+    for d in cands:
+        if all(os.path.isfile(os.path.join(d, f)) for f in ('config.json', 'model.safetensors')):
+            return d
+    return HF_MODEL_ID
 
 
 def t2s(text):

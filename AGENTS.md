@@ -63,7 +63,7 @@ media-voice-clone/
 |------|-----|
 | 專案目錄 | 雲端硬碟的 `agents/media-voice-clone`（實際絕對路徑每台不同，一律以 cwd 為準） |
 | Python | **本機共用位置，不在專案裡**：Windows `~\.local\share\media-voice-clone\.venv\Scripts\python.exe`／macOS `~/.local/share/media-voice-clone/.venv/bin/python`（由 `install.ps1` 建立）。下文指令裡的 `$py` 就是它，每個新 shell 先設：`$py = "$HOME\.local\share\media-voice-clone\.venv\Scripts\python.exe"` |
-| 模型 | `openbmb/VoxCPM2`（Apache-2.0；權重已在 HuggingFace 快取） |
+| 模型 | `openbmb/VoxCPM2`（Apache-2.0）。`voice_prep.model_source()` 依序找 `VOXCPM_MODEL` 環境變數 → `%AI_ROOT%\Voice\models\VoxCPM2`（media-short-film 裝的那份，`AI_ROOT` 預設 `C:\AI`）→ 都沒有才下載到 HuggingFace 快取。本機已有一份就不要再讓快取另存 4.7 GB |
 | 裝置 | 三種模式自動切換：NVIDIA CUDA／Apple Silicon MPS／CPU。`clone.py` 與 `dialogue.py` 直接問 torch（見〈裝置偵測〉） |
 | 效能 | 模型載入 ~9.7 秒（每次執行都要重載），尖峰 VRAM 6.46GB。RTF 隨稿長變化：719 字長稿 **1.0**、中等句 1.1~1.3、10 字以內短句 2.5~2.9（固定開銷攤不掉）。**長稿一次念完比拆成多次划算**。Windows on ARM（LT-YI-RS）：原生 ARM64＋RTX Spark GPU **RTF 1.7**、載入約 25 秒；退回 x64 模擬＋CPU 時極慢（**RTF ~42**，5.9 秒語音要 4 分鐘） |
 | 輸出 | `output/cloned_voice.wav`（`--output` 可改） |
