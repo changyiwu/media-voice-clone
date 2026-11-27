@@ -4,11 +4,11 @@ tts_lexicon.py - 讀音替換表：送進 VoxCPM2 前把念錯的詞換成念得
 
 VoxCPM2 不支援注音標記，多音字、英文詞念錯只能改字。表在本專案根目錄的 tts-lexicon.md（Markdown 表格
 「| 原文 | 改寫 | 說明 |」，格式規則寫在表的開頭）。只改送進模型的文字，參考音的逐字稿（prompt.txt）不受影響。
-這份表有五份、內容完全相同（另外四份在 media-video-specs、media-short-film、agent-speak/speak/、media-math-rap；
-五個 repo 都公開，各自單獨下載就能用），放在同一層時合併讀取。
+這份表有六份、內容完全相同（另外五份在 media-video-specs、media-short-film、agent-speak/speak/、media-math-rap、media-music-video；
+六個 repo 都公開，各自單獨下載就能用），放在同一層時合併讀取。
 
 找表的順序（近的覆蓋遠的，同一個原文以近的為準；都以本檔所在位置為起點，從任何工作目錄呼叫都找得到）：
-  1. 同層另外三份（有就合併）
+  1. 同層另外五份（有就合併）
   2. 本專案根目錄的 tts-lexicon.md（設了環境變數 TTS_LEXICON 就改讀它指的表）
   3. 輸出資料夾往上每一層的 tts-lexicon.md
 找不到任何表就印一行提示、不做替換。
@@ -23,8 +23,8 @@ from pathlib import Path
 NAME = 'tts-lexicon.md'
 REPO = Path(__file__).resolve().parent
 HEAD = ('原文', '改寫')
-# 同內容的另外四份（repo 名稱, 表在 repo 裡的位置）
-SIBLINGS = [('media-video-specs', NAME), ('media-short-film', NAME), ('agent-speak', f'speak/{NAME}'), ('media-math-rap', NAME)]
+# 同內容的另外五份（repo 名稱, 表在 repo 裡的位置）
+SIBLINGS = [('media-video-specs', NAME), ('media-short-film', NAME), ('agent-speak', f'speak/{NAME}'), ('media-math-rap', NAME), ('media-music-video', NAME)]
 
 
 def siblings():

@@ -32,7 +32,7 @@ media-voice-clone/
 ├── clone.py                  # Agent 工具：用聲音生成語音
 ├── dialogue.py               # Agent 工具：多聲音對話
 ├── tts_lexicon.py            # 讀音替換表載入（clone.py／dialogue.py 共用）
-├── tts-lexicon.md            # 讀音替換表（四個 TTS repo 各一份、內容相同）
+├── tts-lexicon.md            # 讀音替換表（六個 repo 各一份、內容相同）
 ├── voice_prep.py             # 生成前後處理與檢核：讀音替換／數字轉中文／繁轉簡／fix_zhe、多音提醒、去靜音／濾波／−15 LUFS、嘶聲／嗡嗡聲偵測、選用 ASR 驗證（clone／dialogue／audition 共用）
 ├── audition.py               # 候選串成試聽檔、聲學／可選 ASR 檢核、挑一支（搭配 clone.py --takes）
 ├── record.py                 # 命令列錄音（備案）
@@ -131,12 +131,12 @@ media-voice-clone/
 
 `clone.py`、`dialogue.py` 送進模型前會先套 `tts-lexicon.md`（`| 原文 | 改寫 | 說明 |`），把念錯的多音字、英文詞改字（奇數→基數、十一少一→十一少了一、GPT-4→GPT four），並印出「改寫後」的文字。參考音逐字稿（`prompt.txt`）不替換。
 
-- **表在本專案根目錄**（`tts-lexicon.md`）。這份表有**五份、內容逐位元組相同**（另外四份在 media-video-specs、media-short-film、agent-speak/speak/、media-math-rap；五個 repo 都公開，各自單獨下載就要能用）。`tts_lexicon.py` 以自己的位置為起點（不靠 cwd）往上找另外四份，有就一起讀，本專案這份優先；設了 `TTS_LEXICON` 就改讀它指的表來取代本專案這份
+- **表在本專案根目錄**（`tts-lexicon.md`）。這份表有**六份、內容逐位元組相同**（另外五份在 media-video-specs、media-short-film、agent-speak/speak/、media-math-rap、media-music-video；六個 repo 都公開，各自單獨下載就要能用）。`tts_lexicon.py` 以自己的位置為起點（不靠 cwd）往上找另外五份，有就一起讀，本專案這份優先；設了 `TTS_LEXICON` 就改讀它指的表來取代本專案這份
 - **覆蓋**：輸出資料夾往上每一層的同名 `tts-lexicon.md`，近的優先（只對某批輸出有效的條目放這裡）
 - 找不到任何表只印一行提示、照原文念，不報錯
-- **使用者說某個詞念錯了** → 條目**五份一起加**（說明欄寫正確讀音、出處、是否已人耳確認），用 `python ../media-short-film/tools/tts_lexicon.py --check`／`--sync` 檢查與合併。加完重生那句給使用者聽
+- **使用者說某個詞念錯了** → 條目**六份一起加**（說明欄寫正確讀音、出處、是否已人耳確認），用 `python ../media-short-film/tools/tts_lexicon.py --check`／`--sync` 檢查與合併。加完重生那句給使用者聽
 - 試表不必載模型：`& $py tts_lexicon.py "句子"`
-- 本專案是獨立公開 repo，**不要 import 別的 repo 的程式**；解析規則改了四個 repo 各自改
+- 本專案是獨立公開 repo，**不要 import 別的 repo 的程式**；解析規則改了六個 repo 各自改
 
 ### record_ui.py — 錄音 UI
 
@@ -190,7 +190,7 @@ media-voice-clone/
 | 「用OOO的聲音念出／說出／講出XXX」 | 走 `voice-clone` 全域技能（見下節）；沒裝技能就直接 `clone.py "XXX" --voice OOO` |
 | 「讓A和B對話」 | 編輯 `dialogue.py` 對話清單 → 執行 |
 | 「有哪些聲音」 | `ls voices\` |
-| 「XX 念錯了」「XX 要念成 OO」 | 五個 repo 的讀音替換表一起加一列 → 重生那句（見〈tts_lexicon.py〉） |
+| 「XX 念錯了」「XX 要念成 OO」 | 六個 repo 的讀音替換表一起加一列 → 重生那句（見〈tts_lexicon.py〉） |
 | 「念得怪怪的」「換一個版本」「聲調不對但字沒錯」 | `clone.py ... --takes 4` → 把 `audition.wav` 交給使用者聽 → `audition.py --pick` |
 | 「我要錄聲音」 | 引導使用者雙擊 `start.bat`，或開啟 http://127.0.0.1:7860 |
 
