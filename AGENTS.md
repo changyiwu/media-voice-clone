@@ -17,7 +17,7 @@
 - [x] 階段二：確認 GPU 路徑可用（RTX 5060 Ti / CUDA，已實測生成成功）
 - [x] 階段三：錄音 UI 可用（`record_ui.py`，繞過 Smart App Control 封鎖）
 - [x] 階段四：評估 `optimize=True` — **結案：維持 `False`**。本機沒有 triton／`cl.exe`，`torch.compile` 會被靜默降級（`Warning: torch.compile disabled - triton is not installed`），暖機後 RTF 兩者同為 1.17、VRAM 同為 6.46GB，但 `optimize=True` 會多跑一次暖機生成、載入從 9.7s 變 13.0s。要真正生效得裝非官方的 `triton-windows`＋MSVC，有 Smart App Control 封鎖風險，不划算
-- [ ] 階段五：評估常駐生成服務（現在每次執行 `clone.py` 都要重載模型約 10 秒）
+- [ ] 階段五：`clone.py --batch` 已支援多句共用一次模型載入與參考音編碼。仍需評估零星單句是否值得使用常駐服務
 - [x] 階段六：RTX Spark（Windows on ARM）用 GPU 生成——`install.ps1` 建原生 ARM64＋CUDA 環境（NVIDIA 預覽版 PyTorch），**RTF 1.7**，失敗退回 x64 CPU（見〈裝置偵測〉）
 
 ## 資料夾結構
@@ -105,9 +105,10 @@ media-voice-clone/
 
 - `--voice <名稱>`：對應 `voices/<名稱>/` 目錄（預設 `小吳`）
 - `--file <路徑>`：從文字檔讀取要生成的內容
+- `--batch <路徑>`：讀取 UTF-8 JSON 陣列，每筆含 `text`、`output`，可選填 `voice`。單次載入模型，跨句重用同一聲音的參考音編碼
 - `--output <路徑>`：輸出路徑（預設 `output/cloned_voice.wav`）
 - `--device cuda|cpu`：強制指定裝置（預設自動偵測）
-- `--takes N`：同一句生 N 個候選（seed 1…N）到 `<輸出檔名>_takes/`，並串好 `audition.wav`；用 `audition.py <資料夾> --pick sK -o <正式檔>` 挑一支。使用者說「念得怪怪的」「換一個」時用這個，不要只重跑一次碰運氣
+- `--takes N`：每句生 N 個候選（seed 1…N）到 `<輸出檔名>_takes/` 並串好 `audition.wav`。同名重跑依序加 `_2`、`_3`。用 `audition.py <這次的資料夾> --pick sK -o <正式檔>` 挑一支。使用者說「念得怪怪的」「換一個」時用這個，不要只重跑一次碰運氣
 - `--raw`：跳過後處理（預設：去頭尾靜音、highpass 70 Hz＋lowpass 11 kHz、響度 −15 LUFS、取樣峰值 ≤ −1 dBFS）
 - `--verify`：選用；生成後用本機 `faster-whisper`（不塞 `initial_prompt`）與 `pypinyin` 比對聽寫與讀音（預設不跑；未安裝時清楚提示略過，不影響生成）
 - `--dry-run`：只印送進模型的文字與多音／異讀風險提醒，不載模型

@@ -196,70 +196,134 @@ def int_zh(n):
 
 
 def int_zh_full(n):
-    """1000–9999 的「千」讀法（供 ASR 聽寫比對「一千八百」與「1800」）。"""
+    """照位值念整數，四位一組，補上跨組的零。"""
     n = int(n)
-    if not 1000 <= n < 10000:
+    if n < 0:
+        return '負' + int_zh_full(-n)
+    if n < 1000 or n >= 10 ** 20:
         return int_zh(n)
-    q, r = divmod(n, 1000)
-    s = DIG[q] + '千'
-    if r == 0:
-        return s
-    if r < 100:
-        return s + '零' + ('一' + int_zh(r) if 10 <= r < 20 else int_zh(r))
-    return s + int_zh(r)
+    groups = []
+    while n:
+        n, group = divmod(n, 10000)
+        groups.append(group)
+    units = ('', '萬', '億', '兆', '京')
+    parts = []
+    need_zero = False
+    for i in range(len(groups) - 1, -1, -1):
+        group = groups[i]
+        if not group:
+            need_zero = True
+            continue
+        if parts and (need_zero or group < 1000):
+            parts.append('零')
+        thousands, rest = divmod(group, 1000)
+        if thousands:
+            parts.append(DIG[thousands] + '千')
+            if 0 < rest < 100:
+                parts.append('零')
+        if rest:
+            if 10 <= rest < 20 and parts:
+                parts.append('一')
+            parts.append(int_zh(rest))
+        parts.append(units[i])
+        need_zero = False
+    return ''.join(parts)
 
 
 def num_zh(tok, *, full=False):
     """數字字串（可含負號與小數點）轉中文讀法。"""
-    s = str(tok).strip()
+    s = str(tok).strip().replace(',', '')
     prefix = ''
     if s.startswith(('-', '−')):
         prefix = '負'
         s = s[1:]
-    conv = int_zh_full if full else int_zh
+    def read_integer(digits):
+        if (len(digits) > 1 and int(digits[0]) == 0) or len(digits) > 20:
+            return ''.join(DIG[int(c)] for c in digits)
+        return (int_zh_full if full else int_zh)(int(digits))
+
     if '.' in s:
         a, b = s.split('.', 1)
-        a_zh = conv(int(a)) if a else '零'
+        a_zh = read_integer(a) if a else '零'
         b_zh = ''.join(DIG[int(c)] for c in b)
         return prefix + a_zh + '點' + b_zh
-    if len(s) > 1 and s.startswith('0'):
-        return prefix + ''.join(DIG[int(c)] for c in s)
-    return prefix + conv(int(s))
+    return prefix + read_integer(s)
 
 
-_PCT_RE = re.compile(r'(?<![A-Za-z0-9])(?<!\d\.)(?<![A-Za-z]-)([-−]?\d+(?:\.\d+)?)\s*[%％]')
-_FRAC_RE = re.compile(r'(?<![A-Za-z0-9./])(?<![A-Za-z]-)([-−]?\d+)\s*/\s*(\d+)(?![A-Za-z0-9./]|-[A-Za-z])')
-_NUM_RE = re.compile(r'(?<![A-Za-z0-9])(?<!\d\.)(?<![A-Za-z]-)([-−]?\d+(?:\.\d+)?)(?![A-Za-z0-9]|\.\d|-[A-Za-z])')
+_INTEGER = r'(?:\d{1,3}(?:,\d{3})+|\d+)'
+_DECIMAL = rf'(?:{_INTEGER}(?:\.\d+)?|\.\d+)'
+_NUM_START = r'(?<![A-Za-z\d.])(?<![A-Za-z]-)'
+_NUM_END = r'(?![A-Za-z\d]|\.\d|,\d{3}(?!\d)|-[A-Za-z])'
+_PCT_RE = re.compile(rf'{_NUM_START}([-−]?{_DECIMAL})\s*[%％]')
+_FRAC_RE = re.compile(rf'{_NUM_START}(?<!/)([-−]?{_INTEGER})\s*/\s*({_INTEGER}){_NUM_END}(?!/)')
+_NUM_RE = re.compile(rf'{_NUM_START}([-−]?{_DECIMAL}){_NUM_END}')
+_YEAR_SUFFIX = re.compile(r'(?:\s*年(?!(?:級|期))|([/-])\d{1,2}\1\d{1,2}(?!\d))')
 
 
 def normalize_numbers(text, *, full=False):
-    """把 〇→零、百分比、分數、小數、負號與整數轉為中文讀法；避免破壞標點停頓與英文詞（如 VoxCPM2、UTF-8、v2.0.1）。"""
+    """數量照位值、四位年份逐字念。full=True 也將年份照位值轉換，供 ASR 比對。"""
     s = text.replace('〇', '零').replace('……', '，').replace('——', '，')
 
     def _pct(m):
         raw = m.group(1)
         sign = '負' if raw.startswith(('-', '−')) else ''
         body = raw[1:] if sign else raw
-        return sign + '百分之' + num_zh(body, full=full)
+        return sign + '百分之' + num_zh(body, full=True)
 
     def _frac(m):
         raw_num, den = m.group(1), m.group(2)
         sign = '負' if raw_num.startswith(('-', '−')) else ''
         num = raw_num[1:] if sign else raw_num
-        return sign + num_zh(den, full=full) + '分之' + num_zh(num, full=full)
+        return sign + num_zh(den, full=True) + '分之' + num_zh(num, full=True)
+
+    def _number(m):
+        raw = m.group(1)
+        year = len(raw) == 4 and raw.isdecimal() and _YEAR_SUFFIX.match(m.string, m.end())
+        return num_zh(raw, full=full or not year)
 
     s = _PCT_RE.sub(_pct, s)
     s = _FRAC_RE.sub(_frac, s)
-    s = _NUM_RE.sub(lambda m: num_zh(m.group(1), full=full), s)
+    s = _NUM_RE.sub(_number, s)
     return s
 
 
 def to_model_text(text, lexicon):
     """送進 VoxCPM2 前的文字正規化：speakable() → 數字符號轉中文 → t2s() → fix_zhe()。"""
+    return prepare_text(text, lexicon)[1]
+
+
+def prepare_text(text, lexicon):
+    """回傳 (供多音提示用的文字, 送進模型的文字)。"""
     from tts_lexicon import speakable
-    spoken = speakable(text, lexicon)
-    spoken = normalize_numbers(spoken)
-    return fix_zhe(t2s(spoken))
+    spoken = normalize_numbers(speakable(text, lexicon))
+    return spoken, fix_zhe(t2s(spoken))
+
+
+def generate_speech(model, text, reference, prompt_text, *, cfg_value, prompt_caches=None):
+    """多句或多候選共用參考音編碼。舊版 VoxCPM 可沿用一般生成入口。"""
+    tts = model.tts_model
+    build_cache = getattr(tts, 'build_prompt_cache', None)
+    generate_cached = getattr(tts, 'generate_with_prompt_cache', None)
+    if prompt_caches is None or not callable(build_cache) or not callable(generate_cached):
+        return model.generate(
+            text=text, prompt_wav_path=reference, prompt_text=prompt_text,
+            reference_wav_path=reference, cfg_value=cfg_value, inference_timesteps=10,
+        )
+
+    key = (os.path.normcase(os.path.realpath(reference)), prompt_text)
+    if key not in prompt_caches:
+        prompt_caches[key] = build_cache(
+            prompt_wav_path=reference, prompt_text=prompt_text, reference_wav_path=reference,
+        )
+    wav, _, _ = generate_cached(
+        target_text=re.sub(r'\s+', ' ', text),
+        prompt_cache=prompt_caches[key],
+        cfg_value=cfg_value,
+        inference_timesteps=10,
+        max_len=4096,
+        retry_badcase=True,
+    )
+    return wav.squeeze(0).cpu().numpy()
 
 
 def _is_cjk(ch):
@@ -692,8 +756,23 @@ def verify_pronunciation(wav_path, expected_text, orig_text=None):
     """僅供 --verify 呼叫：以無 initial_prompt 的 faster-whisper 聽寫並與 pypinyin 讀音比對。
     缺套件或模型不可用時清楚回傳不可用原因，不拋出例外中斷正常流程。
     """
-    model, err = _load_whisper()
-    if model is None:
+    try:
+        model, err = _load_whisper()
+        if model is None:
+            err = err or 'ASR 模型不可用'
+        else:
+            segs, _ = model.transcribe(
+                str(wav_path),
+                language='zh',
+                beam_size=5,
+                initial_prompt=None,
+                condition_on_previous_text=False,
+            )
+            heard = _s2t_quiet(''.join(s.text for s in segs).strip())
+            cmp_res = compare_pronunciation(heard, expected_text, orig_text=orig_text)
+    except Exception as e:
+        err = f'ASR 驗證失敗：{e}'
+    if err:
         return {
             'available': False,
             'ok': None,
@@ -704,15 +783,6 @@ def verify_pronunciation(wav_path, expected_text, orig_text=None):
             'reason': err,
         }
 
-    segs, _ = model.transcribe(
-        str(wav_path),
-        language='zh',
-        beam_size=5,
-        initial_prompt=None,
-        condition_on_previous_text=False,
-    )
-    heard = _s2t_quiet(''.join(s.text for s in segs).strip())
-    cmp_res = compare_pronunciation(heard, expected_text, orig_text=orig_text)
     return {
         'available': True,
         'ok': cmp_res['ok'],
@@ -742,6 +812,12 @@ def selftest():
     assert num_zh('-0.5') == '負零點五'
     assert normalize_numbers('二〇二六年第 12 題，-3.5% 與 3/4，VoxCPM2, UTF-8, v2.0.1！') == (
         '二零二六年第 十二 題，負百分之三點五 與 四分之三，VoxCPM2, UTF-8, v2.0.1！'
+    )
+    assert normalize_numbers('2026年：1,234 個、.5%、-.75、1/1000。') == (
+        '二零二六年：一千二百三十四 個、百分之零點五、負零點七五、一千分之一。'
+    )
+    assert normalize_numbers('收入 1200 元，100,010,001 人。') == (
+        '收入 一千二百 元，一億零一萬零一 人。'
     )
 
     # 3. to_model_text

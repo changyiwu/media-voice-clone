@@ -16,7 +16,7 @@ import time
 
 import numpy as np
 
-from tts_lexicon import load_lexicon, speakable
+from tts_lexicon import load_lexicon
 import voice_prep as vp
 
 REPO_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -79,9 +79,11 @@ def main():
     lexicon = load_lexicon(os.path.dirname(output_path))
 
     # 開始生成前先掃描全腳本並集中列出多音／異讀風險提醒（不阻斷執行）
+    prepared = []
     script_warnings = []
     for i, (speaker, text) in enumerate(dialogue, 1):
-        spoken_zh = vp.normalize_numbers(speakable(text, lexicon))
+        spoken_zh, say_text = vp.prepare_text(text, lexicon)
+        prepared.append((speaker, text, say_text))
         for w in vp.poly_warnings(spoken_zh):
             script_warnings.append(f"  第 {i} 句（{speaker}）：{w}")
     if script_warnings:
@@ -91,8 +93,7 @@ def main():
         print()
 
     if args.dry_run:
-        for i, (speaker, text) in enumerate(dialogue, 1):
-            say_text = vp.to_model_text(text, lexicon)
+        for i, (speaker, text, say_text) in enumerate(prepared, 1):
             print(f"[{i}/{len(dialogue)}] {speaker}: {text}")
             if say_text != text:
                 print(f"        改寫後: {say_text}")
@@ -118,22 +119,17 @@ def main():
     print(f"\n開始生成對話（{len(dialogue)} 句）...\n")
 
     clips = []
+    prompt_caches = {}
     sr = model.tts_model.sample_rate
-    for i, (speaker, text) in enumerate(dialogue, 1):
+    for i, (speaker, text, say_text) in enumerate(prepared, 1):
         ref_wav, prompt_text = voices[speaker]
         print(f"[{i}/{len(dialogue)}] {speaker}: {text}")
-        say_text = vp.to_model_text(text, lexicon)
         if say_text != text:
             print(f"        改寫後: {say_text}")
 
         t1 = time.time()
-        wav = model.generate(
-            text=say_text,
-            prompt_wav_path=ref_wav,
-            prompt_text=prompt_text,
-            reference_wav_path=ref_wav,
-            cfg_value=1.5,
-            inference_timesteps=10,
+        wav = vp.generate_speech(
+            model, say_text, ref_wav, prompt_text, cfg_value=1.5, prompt_caches=prompt_caches,
         )
         elapsed = time.time() - t1
         duration = len(wav) / sr

@@ -18,43 +18,9 @@ if not exist "%PY%" (
     exit /b 1
 )
 
-:: ========== 檢查是否有已錄製的聲音 ==========
-if not exist "voices" (
-    mkdir voices
+:: 伺服器負責開啟瀏覽器、辨識同一專案的既有服務並回報連接埠衝突。
+"%PY%" record_ui.py --open
+if errorlevel 1 (
+    pause
+    exit /b 1
 )
-set HAS_VOICE=0
-for /d %%d in (voices\*) do (
-    if exist "%%d\ref_voice.wav" set HAS_VOICE=1
-)
-if %HAS_VOICE%==0 (
-    echo ========================================
-    echo   尚未錄製聲音！
-    echo   請在接下來開啟的網頁中錄製你的參考音。
-    echo ========================================
-    echo.
-)
-
-:: ========== 關閉舊的伺服器（如果有的話） ==========
-for /f "tokens=5" %%a in ('netstat -ano ^| findstr :7860') do (
-    taskkill /f /pid %%a 2>nul
-)
-
-:: ========== 啟動伺服器 ==========
-echo 正在啟動 VoxCPM2 Voice Cloner...
-start "VoxCPM2 Server" "%PY%" record_ui.py
-
-:: ========== 等待伺服器啟動 ==========
-echo 等待伺服器啟動中...
-:wait
-timeout /t 1 /nobreak >nul
-curl -s http://127.0.0.1:7860 >nul 2>&1
-if errorlevel 1 goto wait
-
-:: ========== 開啟瀏覽器 ==========
-echo 啟動完成！正在打開瀏覽器...
-start http://127.0.0.1:7860
-
-echo.
-echo 視窗可以關閉，伺服器會在背景持續執行。
-echo 若要停止，按 Ctrl+C 或關閉「VoxCPM2 Server」視窗。
-timeout /t 5 >nul

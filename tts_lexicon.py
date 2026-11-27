@@ -39,10 +39,15 @@ def own():
 
 def lexicon_files(start=None):
     """回傳要讀的表，遠的在前、近的在後"""
-    files = [*siblings(), own()]
+    primary = own()
+    default = REPO / NAME
+    files = [*siblings(), primary]
     if start:
         s = Path(start).resolve()
-        files += reversed([d / NAME for d in (s, *s.parents)])
+        ancestor_files = [d / NAME for d in (s, *s.parents)]
+        if primary.resolve() != default.resolve():
+            ancestor_files = [f for f in ancestor_files if f != default]
+        files += reversed(ancestor_files)
     out = []
     for f in files:
         if f and f.is_file():

@@ -16,17 +16,21 @@ gradio 會被 Code Integrity 封鎖而無法啟動，此版本不受影響。
   python record_ui.py --open       # 啟動後自動開瀏覽器
 """
 
-import io
-import os
-import json
 import argparse
+import hashlib
+import io
+import json
+import os
+import socket
 import webbrowser
+from http.client import HTTPConnection, HTTPException
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
 import numpy as np
 
 REPO_DIR = os.path.dirname(os.path.abspath(__file__))
+RECORDER_ID = hashlib.sha256(os.fsencode(os.path.normcase(os.path.realpath(REPO_DIR)))).hexdigest()
 VOICES_DIR = os.path.join(REPO_DIR, "voices")
 SAMPLE_RATE = 16000
 MAX_UPLOAD = 200 * 1024 * 1024      # 200MB，約 100 分鐘的 16kHz 單聲道
@@ -44,7 +48,7 @@ def list_voices():
     out = []
     for d in sorted(os.listdir(VOICES_DIR)):
         vdir = os.path.join(VOICES_DIR, d)
-        if os.path.isdir(vdir) and os.path.exists(os.path.join(vdir, "ref_voice.wav")):
+        if all(os.path.isfile(os.path.join(vdir, f)) for f in ("ref_voice.wav", "prompt.txt")):
             out.append(d)
     return out
 
@@ -412,6 +416,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, PAGE.encode("utf-8"), "text/html; charset=utf-8")
         elif path == "/api/info":
             self._json(200, {"sample_text": load_sample_text(), "voices": list_voices()})
+        elif path == "/api/status":
+            self._send(200, RECORDER_ID.encode("ascii"), "text/plain; charset=ascii")
         else:
             self._send(404, b"not found", "text/plain; charset=utf-8")
 
@@ -452,22 +458,51 @@ class Handler(BaseHTTPRequestHandler):
         self._json(200 if ok else 400, {"ok": ok, "msg": msg})
 
 
+def is_own_recorder(port):
+    """確認連接埠上的錄音服務來自同一個專案目錄。"""
+    connection = HTTPConnection("127.0.0.1", port, timeout=1)
+    try:
+        connection.request("GET", "/api/status")
+        response = connection.getresponse()
+        return response.status == 200 and response.read(len(RECORDER_ID) + 1) == RECORDER_ID.encode("ascii")
+    except (OSError, HTTPException):
+        return False
+    finally:
+        connection.close()
+
+
+class RecorderServer(ThreadingHTTPServer):
+    # Windows 的 SO_REUSEADDR 允許綁到其他行程已在監聽的位址。
+    allow_reuse_address = os.name != 'nt'
+    allow_reuse_port = False
+
+    def server_bind(self):
+        if os.name == 'nt':
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
+
+
 def main():
     p = argparse.ArgumentParser(description="VoxCPM2 錄音介面（不依賴 gradio）")
     p.add_argument("--port", "-p", type=int, default=7860)
     p.add_argument("--open", action="store_true", help="啟動後自動開啟瀏覽器")
     args = p.parse_args()
+    if not 0 <= args.port <= 65535:
+        p.error("--port 必須介於 0 和 65535")
 
     os.makedirs(VOICES_DIR, exist_ok=True)
-    url = "http://127.0.0.1:%d" % args.port
-
     try:
-        httpd = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
+        httpd = RecorderServer(("127.0.0.1", args.port), Handler)
     except OSError as e:
+        if args.open and is_own_recorder(args.port):
+            print("錄音介面已啟動，正在開啟瀏覽器。")
+            webbrowser.open("http://127.0.0.1:%d" % args.port)
+            return
         print("無法在 port %d 啟動：%s" % (args.port, e))
-        print("可能是已經有一個錄音介面在跑了。可改用其他 port：")
-        print("  python record_ui.py --port 7870")
+        print("若連接埠已被占用，可改用其他 port：")
+        print("  python record_ui.py --open --port 7870")
         raise SystemExit(1)
+    url = "http://127.0.0.1:%d" % httpd.server_port
 
     voices = list_voices()
     print("=" * 56)

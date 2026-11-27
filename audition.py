@@ -39,7 +39,7 @@ def takes(folder):
     return sorted(fs, key=seed)
 
 
-def build(folder, verify=False, text=None, orig_text=None):
+def build(folder, verify=False, text=None, orig_text=None, *, show_path=True):
     files = takes(folder)
     if not files:
         sys.exit(f'{folder} 裡沒有候選（檔名要是 <名稱>_s<數字>.wav）')
@@ -93,7 +93,7 @@ def build(folder, verify=False, text=None, orig_text=None):
     sf.write(out, np.concatenate(parts), sr0, subtype='PCM_16')
 
     verify_results = {}
-    verify_notice = None
+    verify_notices = []
     if verify:
         for f, _, _, _, _, _, meta_text, meta_orig in rows:
             exp_t = cli_expected if text is not None else meta_text
@@ -103,11 +103,8 @@ def build(folder, verify=False, text=None, orig_text=None):
                 continue
             vr = vp.verify_pronunciation(os.path.join(folder, f), exp_t, orig_text=org_t)
             verify_results[f] = vr
-            if not vr['available']:
-                verify_notice = vr['reason']
-                break
-            if vr['reason'] and verify_notice is None:
-                verify_notice = vr['reason']
+            if vr['reason'] and vr['reason'] not in verify_notices:
+                verify_notices.append(vr['reason'])
 
     header = f'{"候選":<8}{"從第幾秒":>8}{"長度":>7}{"響度":>8}{"高頻比":>8}{"嗡嗡聲":>8}'
     if verify:
@@ -127,7 +124,9 @@ def build(folder, verify=False, text=None, orig_text=None):
             vr = verify_results[f]
             if vr.get('no_text'):
                 v_str = '（缺參考文字，無法比對）'
-            elif vr['available']:
+            elif not vr['available']:
+                v_str = '（驗證未完成）'
+            else:
                 if vr['ok']:
                     v_str = f"✓({vr['sim']:.2f}) {vr['heard']}"
                 else:
@@ -140,9 +139,14 @@ def build(folder, verify=False, text=None, orig_text=None):
         if v_str:
             tail = f'{tail}  | {v_str}' if warn_str else f'  {v_str}'
         print(f'{tag:<8}{start:>7.1f}s{dur:>6.1f}s{lt:>8}{hf:>8.2f}{bz:>7.1f}{tail}')
-    if verify_notice:
-        print(f'[verify] {verify_notice}')
-    print(f'→ {out}')
+    for notice in verify_notices:
+        print(f'[verify] {notice}')
+    if show_path:
+        print_audition_path(folder)
+
+
+def print_audition_path(folder):
+    print(f"→ {os.path.join(folder, 'audition.wav')}")
     print(f'選好後：python audition.py "{folder}" --pick <候選> -o <正式檔名>.wav')
 
 
