@@ -98,7 +98,7 @@ Agent 會自動找到對應聲音、生成語音、回傳音檔。
 
 輸出檔案預設在 `output/cloned_voice.wav`。
 
-生成後會自動做**後處理**（`voice_prep.py`）：去頭尾靜音、濾掉低頻轟聲與 11 kHz 以上的嘶聲、響度調到 **−15 LUFS**（取樣峰值不超過 −1 dBFS）。不要後處理就加 `--raw`。送進模型前的文字會先套讀音替換表、再**繁轉簡**（VoxCPM2 念簡體比較穩；需要 `opencc-python-reimplemented`，`install.ps1` 會裝，沒裝就跳過）。
+生成後會自動做**後處理**（`voice_prep.py`）：去頭尾靜音、濾掉低頻轟聲與 11 kHz 以上的嘶聲、響度調到 **−15 LUFS**（取樣峰值不超過 −1 dBFS）。不要後處理就加 `--raw`。送進模型前的文字會依序套讀音替換表、數字與常見符號轉中文（整數／小數／百分比／分數／負號／`〇→零`）、**繁轉簡**（VoxCPM2 念簡體比較穩；需要 `opencc-python-reimplemented`，`install.ps1` 會裝，沒裝就跳過），以及 `fix_zhe()`（把念 `zhe/zháo/zhuó` 的「著」改為簡體「着」，保留「著作／顯著」等念 `zhù` 的詞）。生成前會列出多音／兩岸異讀風險提醒（不阻斷生成）；單抽在濾波前也會量高頻比與窄頻嗡嗡聲（`buzz_db`），異常（`hf_raw > 0.30` 或 `buzz_db > 10.0`）會立即警示並建議改跑 `--takes 4`。若環境另有安裝 `faster-whisper`，可加 `--verify`（選用，預設不跑）執行無 prompt 聽寫與讀音比對。
 
 **同一句多生幾個挑一個**：VoxCPM2 每次生成都有隨機性，同一句換個 seed，聲調、停頓、有沒有嘶聲都不一樣。
 
@@ -108,7 +108,7 @@ Agent 會自動找到對應聲音、生成語音、回傳音檔。
 & $py audition.py output/line_takes --pick s3 -o output/line.wav
 ```
 
-`audition.wav` 用嗶聲隔開各候選，印出來的表有每支「從第幾秒開始」、響度與高頻比；高頻比異常的標「可能有嘶聲」（門檻沿用 media-short-film 的挑音規則），但最後還是以耳朵為準。只想看送進模型的文字（不載模型）：`clone.py "句子" --dry-run`。
+`audition.wav` 用嗶聲隔開各候選，印出來的表有每支「從第幾秒開始」、響度、高頻比與嗡嗡聲 dB；異常會標「可能有嘶聲」「可能有嗡嗡聲」（2.5–9 kHz 窄頻峰值 > 10.0 dB）或「音量離群」（門檻沿用 media-short-film 的挑音規則），並可加 `--verify`（搭 `--text` 或 `.json`）跑無 prompt ASR 聽寫比對，但最後還是以耳朵為準。只想看送進模型的文字與多音提醒（不載模型）：`clone.py "句子" --dry-run`。
 
 ### 生成多聲音對話
 
@@ -116,7 +116,7 @@ Agent 會自動找到對應聲音、生成語音、回傳音檔。
 & $py dialogue.py
 ```
 
-對話內容請直接編輯 `dialogue.py` 中的 `dialogue` 清單。每句會各自做後處理、調到同一個響度（−15 LUFS）再拼接，兩個人的聲音不會一大一小。
+對話內容請直接編輯 `dialogue.py` 中的 `dialogue` 清單（支援 `--dry-run` 預覽）。開始前會先掃描全腳本列出多音／異讀風險提醒，每句生成後濾波前也會檢查嘶聲／嗡嗡聲，再各自做後處理、調到同一個響度（−15 LUFS）並拼接，兩個人的聲音不會一大一小。
 
 ### 讀音替換表（念錯字時）
 
@@ -153,8 +153,8 @@ media-voice-clone/
 ├── dialogue.py               # Agent 工具：多聲音對話
 ├── tts_lexicon.py            # 讀音替換表載入（clone.py／dialogue.py 共用）
 ├── tts-lexicon.md            # 讀音替換表（五個 repo 各一份、內容相同）
-├── voice_prep.py             # 生成前後處理：繁轉簡、去靜音、濾波、−15 LUFS
-├── audition.py               # 候選串成試聽檔、挑一支（搭配 clone.py --takes）
+├── voice_prep.py             # 生成前後處理與檢核：數字轉中文／繁轉簡／fix_zhe、多音提醒、去靜音／濾波／−15 LUFS、嗡嗡聲／ASR 驗證
+├── audition.py               # 候選串成試聽檔、聲學／ASR 檢核、挑一支（搭配 clone.py --takes）
 ├── record.py                 # 命令列錄音（備案）
 ├── start.bat                 # 雙擊啟動錄音 UI
 ├── install.bat               # 雙擊安裝

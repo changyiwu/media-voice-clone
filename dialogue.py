@@ -5,15 +5,18 @@
 
 要換聲音就改 SPEAKER_A / SPEAKER_B（對應 voices/ 目錄名），要換內容就改 dialogue 清單。
 
-每句送進模型前套讀音替換表＋繁轉簡；生成後每句各自去頭尾靜音、濾波、調到同一個響度（−15 LUFS）再拼接
-（voice_prep.py）。兩個人的聲音原本一大一小、句首句尾的空白長短不一，這樣處理後停頓只剩固定的 0.4 秒。
+每句送進模型前套讀音替換表＋數字符號轉中文＋繁轉簡＋fix_zhe（voice_prep.py）；開始前先集中掃描多音／異讀風險提醒；
+生成後於濾波前檢查嘶聲與嗡嗡聲，每句各自去頭尾靜音、濾波、調到同一個響度（−15 LUFS）再拼接。
+兩個人的聲音原本一大一小、句首句尾的空白長短不一，這樣處理後停頓只剩固定的 0.4 秒。
 """
-from voxcpm import VoxCPM
-import soundfile as sf
-import numpy as np
-import time
+import argparse
 import os
-from tts_lexicon import load_lexicon
+import sys
+import time
+
+import numpy as np
+
+from tts_lexicon import load_lexicon, speakable
 import voice_prep as vp
 
 REPO_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -34,6 +37,7 @@ dialogue = [
     (SPEAKER_A, "哈，理論上是啦，但還是真人講的比較有感情啦。"),
 ]
 
+
 def detect_device():
     """問這台的 torch 有什麼可用：cuda → mps → cpu。
 
@@ -47,6 +51,7 @@ def detect_device():
         return 'mps'          # Apple Silicon
     return 'cpu'
 
+
 def load_voice(voice_name):
     """讀取指定聲音的參考音與逐字稿。"""
     voice_dir = os.path.join(REPO_DIR, "voices", voice_name)
@@ -56,7 +61,46 @@ def load_voice(voice_name):
         prompt_text = f.read().strip()
     return ref_wav, prompt_text
 
+
 def main():
+    for s in (sys.stdout, sys.stderr):
+        try:
+            s.reconfigure(encoding='utf-8', errors='replace')
+        except Exception:
+            pass
+
+    ap = argparse.ArgumentParser(description="多聲音對話語音生成")
+    ap.add_argument("--dry-run", action="store_true",
+                    help="只顯示文字正規化結果與多音／異讀風險提醒，不載入模型")
+    args = ap.parse_args()
+
+    # 讀音替換表（多音字、英文詞改字）；只改送進模型的文字，逐字稿不動
+    output_path = os.path.join(REPO_DIR, "output", f"dialogue_{SPEAKER_A}_{SPEAKER_B}.wav")
+    lexicon = load_lexicon(os.path.dirname(output_path))
+
+    # 開始生成前先掃描全腳本並集中列出多音／異讀風險提醒（不阻斷執行）
+    script_warnings = []
+    for i, (speaker, text) in enumerate(dialogue, 1):
+        spoken_zh = vp.normalize_numbers(speakable(text, lexicon))
+        for w in vp.poly_warnings(spoken_zh):
+            script_warnings.append(f"  第 {i} 句（{speaker}）：{w}")
+    if script_warnings:
+        print("⚠️ 對話腳本多音／異讀風險提醒（僅供試聽留意，不阻斷生成）：")
+        for line in script_warnings:
+            print(line)
+        print()
+
+    if args.dry_run:
+        for i, (speaker, text) in enumerate(dialogue, 1):
+            say_text = vp.to_model_text(text, lexicon)
+            print(f"[{i}/{len(dialogue)}] {speaker}: {text}")
+            if say_text != text:
+                print(f"        改寫後: {say_text}")
+        return
+
+    from voxcpm import VoxCPM
+    import soundfile as sf
+
     device = detect_device()
     print(f"裝置: {device}")
     src = vp.model_source()
@@ -71,13 +115,10 @@ def main():
         voices[name] = load_voice(name)
         print(f"  已載入聲音: {name}")
 
-    # 讀音替換表（多音字、英文詞改字）；只改送進模型的文字，逐字稿不動
-    output_path = os.path.join(REPO_DIR, "output", f"dialogue_{SPEAKER_A}_{SPEAKER_B}.wav")
-    lexicon = load_lexicon(os.path.dirname(output_path))
-
     print(f"\n開始生成對話（{len(dialogue)} 句）...\n")
 
     clips = []
+    sr = model.tts_model.sample_rate
     for i, (speaker, text) in enumerate(dialogue, 1):
         ref_wav, prompt_text = voices[speaker]
         print(f"[{i}/{len(dialogue)}] {speaker}: {text}")
@@ -95,24 +136,37 @@ def main():
             inference_timesteps=10,
         )
         elapsed = time.time() - t1
-        duration = len(wav) / model.tts_model.sample_rate
-        wav, note = vp.finish(wav, model.tts_model.sample_rate)
+        duration = len(wav) / sr
+
+        # 濾波前檢核高嘶聲／嗡嗡聲
+        hf_raw = round(vp.hf_ratio(wav, sr), 3)
+        buzz_raw = vp.buzz_db(wav, sr)
+        issues = []
+        if hf_raw > 0.30:
+            issues.append(f"hf_raw={hf_raw:.3f} > 0.30（可能有嘶聲）")
+        if buzz_raw > vp.BUZZ_DB:
+            issues.append(f"buzz_db={buzz_raw:.1f} dB > {vp.BUZZ_DB:.1f}（可能有嗡嗡聲）")
+
+        wav, note = vp.finish(wav, sr)
         print(f"        -> {duration:.1f}s ({elapsed:.1f}s)；後處理：{note}")
+        if issues:
+            print(f"        ⚠️ 聲學警示：{'；'.join(issues)}")
 
         # 句子之間加 0.4 秒停頓
-        pause = np.zeros(int(0.4 * model.tts_model.sample_rate), dtype=wav.dtype)
+        pause = np.zeros(int(0.4 * sr), dtype=wav.dtype)
         clips.append(wav)
         clips.append(pause)
 
     # 拼接所有片段
     full_audio = np.concatenate(clips)
-    total_duration = len(full_audio) / model.tts_model.sample_rate
+    total_duration = len(full_audio) / sr
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    sf.write(output_path, full_audio, model.tts_model.sample_rate)
+    sf.write(output_path, full_audio, sr)
 
-    print(f"\n對話生成完成！")
+    print("\n對話生成完成！")
     print(f"  總長度: {total_duration:.1f}s")
     print(f"  檔案: {output_path}")
+
 
 if __name__ == "__main__":
     main()

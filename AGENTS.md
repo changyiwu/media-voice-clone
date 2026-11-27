@@ -33,8 +33,8 @@ media-voice-clone/
 ├── dialogue.py               # Agent 工具：多聲音對話
 ├── tts_lexicon.py            # 讀音替換表載入（clone.py／dialogue.py 共用）
 ├── tts-lexicon.md            # 讀音替換表（四個 TTS repo 各一份、內容相同）
-├── voice_prep.py             # 生成前後處理：繁轉簡、去靜音、濾波、−15 LUFS（clone／dialogue／audition 共用）
-├── audition.py               # 候選串成試聽檔、挑一支（搭配 clone.py --takes）
+├── voice_prep.py             # 生成前後處理與檢核：讀音替換／數字轉中文／繁轉簡／fix_zhe、多音提醒、去靜音／濾波／−15 LUFS、嘶聲／嗡嗡聲偵測、選用 ASR 驗證（clone／dialogue／audition 共用）
+├── audition.py               # 候選串成試聽檔、聲學／可選 ASR 檢核、挑一支（搭配 clone.py --takes）
 ├── record.py                 # 命令列錄音（備案）
 ├── app.py                    # 舊版錄音 UI（gradio，本機無法執行）
 ├── webui_record.py           # 舊版網頁錄音（gradio，本機無法執行）
@@ -109,9 +109,10 @@ media-voice-clone/
 - `--device cuda|cpu`：強制指定裝置（預設自動偵測）
 - `--takes N`：同一句生 N 個候選（seed 1…N）到 `<輸出檔名>_takes/`，並串好 `audition.wav`；用 `audition.py <資料夾> --pick sK -o <正式檔>` 挑一支。使用者說「念得怪怪的」「換一個」時用這個，不要只重跑一次碰運氣
 - `--raw`：跳過後處理（預設：去頭尾靜音、highpass 70 Hz＋lowpass 11 kHz、響度 −15 LUFS、取樣峰值 ≤ −1 dBFS）
-- `--dry-run`：只印送進模型的文字（讀音替換表＋繁轉簡），不載模型
+- `--verify`：選用；生成後用本機 `faster-whisper`（不塞 `initial_prompt`）與 `pypinyin` 比對聽寫與讀音（預設不跑；未安裝時清楚提示略過，不影響生成）
+- `--dry-run`：只印送進模型的文字與多音／異讀風險提醒，不載模型
 
-送進模型前一律經 `voice_prep.to_model_text()`：讀音替換表 → 繁轉簡（VoxCPM2 念簡體比較穩，media-short-film 實測；沒裝 opencc 就跳過）。生成後經 `voice_prep.finish()`。響度 −15 LUFS 跟 media-video-specs、media-short-film 的成片目標一致。嘶聲（4 kHz 以上能量比）要在濾波**前**量，`--takes` 會記在每支候選旁的 `.json`，`audition.py` 優先用它。
+送進模型前一律經 `voice_prep.to_model_text()`：`speakable()`（讀音替換表）→ 數字符號轉中文（整數／小數／百分比／分數／負號／`〇→零`）→ 繁轉簡（沒裝 `opencc` 就跳過）→ `fix_zhe()`（念 `zhe/zháo/zhuó` 的「著」改簡體「着」，保留「著作／顯著」等 `ZHU_WORDS`）。生成前無論是否 `--dry-run` 皆印出 `voice_prep.poly_warnings()` 多音／兩岸異讀風險提醒（不阻斷執行）。生成後經 `voice_prep.finish()`；響度 −15 LUFS 跟 media-video-specs、media-short-film 的成片目標一致。嘶聲（`hf_ratio`，4 kHz 以上能量比）與嗡嗡聲（`buzz_db`，2.5–9 kHz 窄頻峰值）一律在濾波**前**量：單抽若 `hf_raw > 0.30` 或 `buzz_db > 10.0` 會立即警示並建議改跑 `--takes 4`；`--takes` 會記在每支候選旁的 `.json`，`audition.py` 優先使用並標出「可能有嘶聲」「可能有嗡嗡聲」「音量離群」，且支援 `--verify`（可搭 `--text`）執行無 prompt ASR 聽寫比對。
 
 ### dialogue.py — 用多個聲音生成對話
 
@@ -122,6 +123,7 @@ media-voice-clone/
 - 換聲音：改腳本頂部的 `SPEAKER_A` / `SPEAKER_B` 兩個常數（預設 `小吳` / `老柯`），對話清單與輸出檔名都會跟著走
 - 輸出：`output/dialogue_<A>_<B>.wav`
 - 自訂對話內容：編輯 `dialogue.py` 中的 `dialogue` 清單
+- 支援 `--dry-run`（只看正規化文字與全腳本多音提醒，不載模型）；開始生成前會先掃描全腳本列出 `poly_warnings()` 提醒，每句生成後濾波前若檢出高嘶聲／嗡嗡聲也會印出警示
 - 每句各自經 `voice_prep.finish()`（去頭尾靜音、濾波、−15 LUFS）再拼接，句間固定 0.4 秒，兩個聲音不會一大一小
 - 模型只載入一次、逐句切換聲音，攤下來每句只多約 10 秒。實測 8 句 35.8 秒對話共 59 秒（**第一句是暖機、會特別慢**，之後穩定在 RTF ~1.1）
 

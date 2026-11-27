@@ -11,17 +11,19 @@ clone.py - 用 VoxCPM2 Ultimate Cloning 生成你的克隆語音。
   python clone.py "文字" --output output/my_voice.wav
   python clone.py "文字" --reference my_ref.wav --text-file my_ref_text.txt
   python clone.py "文字" --takes 4                 生 4 個候選（seed 1–4）＋試聽檔，用 audition.py 挑一支
-  python clone.py "文字" --dry-run                 只看送進模型的文字（讀音替換表＋繁轉簡），不載模型
+  python clone.py "文字" --verify                  生成後用本機 faster-whisper 執行 ASR 聽寫與讀音比對
+  python clone.py "文字" --dry-run                 只看送進模型的文字（讀音替換表＋數字符號轉中文＋繁轉簡＋fix_zhe）與多音提醒，不載模型
 
 預設會做後處理（voice_prep.py）：去頭尾靜音、濾低頻轟聲與嘶聲、響度調到 −15 LUFS；--raw 跳過。
 """
 
+import argparse
 import os
 import sys
 import time
-import argparse
 
 REPO_DIR = os.path.dirname(os.path.abspath(__file__))
+
 
 def detect_device():
     """問這台的 torch 有什麼可用：cuda → mps → cpu。
@@ -46,6 +48,12 @@ def resolve_voice_files(voice, reference_override, text_override):
 
 
 def main():
+    for s in (sys.stdout, sys.stderr):
+        try:
+            s.reconfigure(encoding='utf-8', errors='replace')
+        except Exception:
+            pass
+
     parser = argparse.ArgumentParser(description='VoxCPM2 Ultimate Cloning 語音生成')
     parser.add_argument('text', nargs='?', help='要生成的文字')
     parser.add_argument('--file', '-f', help='從文字檔讀取要生成的內容')
@@ -62,7 +70,10 @@ def main():
                         help='生成幾個候選（不同 seed）給你用耳朵挑；>1 時存到 <輸出檔名>_takes/ 並建試聽檔（見 audition.py）')
     parser.add_argument('--raw', action='store_true',
                         help='不做後處理（預設會去頭尾靜音、濾低頻轟聲與嘶聲、響度調到 −15 LUFS）')
-    parser.add_argument('--dry-run', action='store_true', help='只印出送進模型的文字（套讀音替換表＋繁轉簡），不載入模型')
+    parser.add_argument('--verify', action='store_true',
+                        help='生成後用本機 faster-whisper 執行 ASR 聽寫與讀音比對（選用功能，未安裝時清楚提示）')
+    parser.add_argument('--dry-run', action='store_true',
+                        help='只印出送進模型的文字（讀音替換表＋數字符號轉中文＋繁轉簡＋fix_zhe）與多音提醒，不載入模型')
     args = parser.parse_args()
 
     # 取得要生成的文字
@@ -76,12 +87,19 @@ def main():
         print('範例: python clone.py "你好，這是我的克隆聲音。"')
         sys.exit(1)
 
-    # 套讀音替換表（多音字、英文詞改字）再繁轉簡（VoxCPM2 念簡體比較穩）；只改送進模型的文字，逐字稿不動
-    from tts_lexicon import load_lexicon
+    # 套讀音替換表 → 數字符號轉中文 → 繁轉簡 → fix_zhe（只改送進模型的文字，參考音逐字稿不動）
+    from tts_lexicon import load_lexicon, speakable
     import voice_prep as vp
-    say_text = vp.to_model_text(gen_text, load_lexicon(os.path.dirname(os.path.abspath(args.output))))
+    lexicon = load_lexicon(os.path.dirname(os.path.abspath(args.output)))
+    spoken_zh = vp.normalize_numbers(speakable(gen_text, lexicon))
+    say_text = vp.to_model_text(gen_text, lexicon)
     if say_text != gen_text:
         print(f'改寫後: {say_text}')
+    warnings = vp.poly_warnings(spoken_zh)
+    if warnings:
+        print('⚠️ 多音／異讀風險提醒（僅供試聽留意，不阻斷生成）：')
+        for w in warnings:
+            print(f'  - {w}')
     if args.dry_run:
         return
 
@@ -156,19 +174,56 @@ def main():
         elapsed = time.time() - t1
         duration = len(wav) / sr
         print(f'{label}完成，耗時 {elapsed:.1f}s（語音長度 {duration:.1f}s，RTF={elapsed/duration:.1f}）')
-        if seed is not None:                             # 嘶聲要在濾波前量（濾掉 11 kHz 以上後就看不太出來），記給 audition.py
+
+        # 嘶聲與嗡嗡聲要在濾波前量（濾掉 11 kHz 以上後就看不太出來）
+        hf_raw = round(vp.hf_ratio(wav, sr), 3)
+        buzz_raw = vp.buzz_db(wav, sr)
+        if seed is not None:
             import json
             with open(os.path.splitext(out_path)[0] + '.json', 'w', encoding='utf-8') as f:
-                json.dump({'seed': seed, 'hf_raw': round(vp.hf_ratio(wav, sr), 3), 'text': say_text}, f, ensure_ascii=False)
+                json.dump(
+                    {
+                        'seed': seed,
+                        'hf_raw': hf_raw,
+                        'buzz_db': buzz_raw,
+                        'text': say_text,
+                        'orig_text': gen_text,
+                    },
+                    f,
+                    ensure_ascii=False,
+                )
+        else:
+            issues = []
+            if hf_raw > 0.30:
+                issues.append(f'高頻比 hf_raw={hf_raw:.3f} > 0.30（可能有嘶聲）')
+            if buzz_raw > vp.BUZZ_DB:
+                issues.append(f'窄頻峰值 buzz_db={buzz_raw:.1f} dB > {vp.BUZZ_DB:.1f}（可能有嗡嗡聲）')
+            if issues:
+                print(f'⚠️ 聲學品質警示：{"；".join(issues)}，建議改跑 --takes 4 挑版！')
+            else:
+                print(f'聲學檢核（濾波前）：hf_raw={hf_raw:.3f}、buzz_db={buzz_raw:.1f} dB（正常）')
+
         if not args.raw:
             wav, note = vp.finish(wav, sr)
             print(f'後處理：去頭尾靜音、濾波，{note}')
         sf.write(out_path, wav, sr)
         print(f'已存檔: {out_path}')
 
+        if seed is None and args.verify:
+            vr = vp.verify_pronunciation(out_path, say_text, orig_text=gen_text)
+            if not vr['available']:
+                print(f"[verify] {vr['reason']}")
+            else:
+                extra = f"（{vr['reason']}）" if vr['reason'] else ''
+                if vr['ok']:
+                    print(f"[verify] ✅ 讀音吻合（相似度 {vr['sim']:.2f}）：{vr['heard']}{extra}")
+                else:
+                    diff = f"；差異：{'、'.join(vr['mismatch'])}" if vr['mismatch'] else ''
+                    print(f"[verify] ⚠️ 聽寫／讀音不符（相似度 {vr['sim']:.2f}）：聽寫={vr['heard']}{diff}{extra}，建議改跑 --takes 4 挑版！")
+
     if args.takes > 1:
         import audition
-        audition.build(folder)
+        audition.build(folder, verify=args.verify, text=say_text, orig_text=gen_text)
 
 
 if __name__ == '__main__':
